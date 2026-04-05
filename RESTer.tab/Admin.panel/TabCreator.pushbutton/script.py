@@ -47,15 +47,10 @@ def _scan_items(items, source_tab, results):
             if 'ListButton' in item_type:
                 continue
 
-            # Get command ID
-            cmd_id = None
-            if hasattr(item, 'CommandId') and item.CommandId:
-                cmd_id = item.CommandId
-            if not cmd_id and hasattr(item, 'Id') and item.Id:
-                cmd_id = item.Id
-
-            if not cmd_id:
+            # Only keep items with a real CommandId (not just an Id)
+            if not hasattr(item, 'CommandId') or not item.CommandId:
                 continue
+            cmd_id = item.CommandId
 
             cmd_str = str(cmd_id)
             if 'RibbonListButton' in cmd_str:
