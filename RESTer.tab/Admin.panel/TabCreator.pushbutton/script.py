@@ -97,7 +97,23 @@ def _scan_items(items, source_tab, results, depth=0):
             continue
 
     if depth == 0:
-        log.debug('Tab %s: scanned %d items', source_tab, item_count)
+        log.debug('Tab %s: scanned %d raw items', source_tab, item_count)
+        # Diagnostic: if we found items but no commands, dump first few item details
+        if item_count > 0 and not any(r.get('sourceTab') == source_tab for r in results):
+            for i, item in enumerate(items):
+                if i >= 3:
+                    break
+                try:
+                    props = {}
+                    for attr in ['CommandId', 'Id', 'Text', 'Name', 'CommandParameter', 'Tag']:
+                        try:
+                            val = getattr(item, attr, '---')
+                            props[attr] = str(val) if val is not None else 'None'
+                        except Exception:
+                            props[attr] = 'ERR'
+                    log.info('Tab %s item[%d] type=%s props=%s', source_tab, i, type(item).__name__, props)
+                except Exception:
+                    pass
 
 
 def get_installed_commands():

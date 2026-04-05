@@ -6,7 +6,7 @@ from logger import get_logger
 
 log = get_logger('addin_scanner')
 
-PROTECTED_ADDINS = {'pyRevit.addin'}
+PROTECTED_ADDINS = {'pyRevit.addin', 'Kinship.addin'}
 
 # Built-in Revit ribbon tabs - these are not add-ins and have no .addin files
 BUILTIN_TABS = {
