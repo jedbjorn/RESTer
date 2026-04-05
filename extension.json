@@ -1,0 +1,7 @@
+{
+  "name": "RESTer",
+  "description": "Custom toolbar profile system for Revit",
+  "type": "extension",
+  "startup_script": "startup.py",
+  "author": "Design/OS"
+}

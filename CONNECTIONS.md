@@ -174,10 +174,10 @@ TabCreator (admin)                    ProfileSelector (user)
 | `profile_loader.html` | Done — wired to pywebview |
 | `spec/HANDOFF.md` | Done — updated for build phase |
 | `spec/addin_lookup.json` | Done |
-| `extension.json` | Not started |
-| `startup.py` | Not started |
-| `script.py` | Not started |
+| `extension.json` | Done |
+| `startup.py` | Done |
+| `script.py` | Done |
 | `profile_selector.py` | Done |
 | `addin_scanner.py` | Done |
 | `launch_profile_loader.bat` | Done |
-| `icons/` (default icon) | Not started |
+| `icons/` (default icon) | Needs placeholder PNG |
