@@ -322,6 +322,15 @@
     transition: all 0.15s;
     line-height: 1;
   }
+  .detect-btn {
+    border-color: #f59e0b;
+    color: #f59e0b;
+  }
+  .detect-btn:hover {
+    background: rgba(245,158,11,0.15);
+    border-color: #f59e0b;
+    color: #f59e0b;
+  }
   .source-tab-badge {
     font-family: 'DM Mono', monospace;
     font-size: 8.5px;
@@ -1254,7 +1263,7 @@
     <div class="sb-section tools">
       <div class="sb-section-head">
         <span class="sb-label">Available Tools</span>
-        <button class="sb-add" onclick="detectTools()">Detect</button>
+        <button class="sb-add detect-btn" onclick="detectTools()">Detect</button>
       </div>
       <div class="sb-rule"></div>
       <div class="tool-filters">
