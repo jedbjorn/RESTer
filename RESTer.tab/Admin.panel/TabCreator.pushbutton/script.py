@@ -24,9 +24,11 @@ def get_revit_version():
         return None
 
 
-def _scan_items(items, source_tab, results):
+def _scan_items(items, source_tab, results, depth=0):
     """Recursively scan ribbon items, descending into containers."""
+    item_count = 0
     for item in items:
+        item_count += 1
         try:
             item_type = type(item).__name__
 
@@ -35,44 +37,57 @@ def _scan_items(items, source_tab, results):
                 continue
 
             # Recurse into container items (RowPanel, StackedPanel, etc.)
-            if hasattr(item, 'Items') and item.Items is not None:
-                try:
-                    child_items = item.Items
-                    if child_items is not None and hasattr(child_items, '__iter__'):
-                        _scan_items(child_items, source_tab, results)
-                except Exception:
-                    pass
+            try:
+                child_items = getattr(item, 'Items', None)
+                if child_items is not None:
+                    _scan_items(child_items, source_tab, results, depth + 1)
+            except Exception:
+                pass
 
-            # Skip list buttons (dropdown containers) but scan their children
+            # Skip list buttons (already recursed into children above)
             if 'ListButton' in item_type:
                 continue
 
-            # Get CommandId - prefer CommandId, fall back to Id for pyRevit tools
-            cmd_id = None
-            if hasattr(item, 'CommandId') and item.CommandId:
-                cmd_id = item.CommandId
+            # Try every possible way to get a command identifier
+            cmd_str = ''
+            try:
+                cid = getattr(item, 'CommandId', None)
+                if cid is not None:
+                    cmd_str = str(cid)
+            except Exception:
+                pass
 
-            if not cmd_id:
-                continue
+            if not cmd_str:
+                try:
+                    iid = getattr(item, 'Id', None)
+                    if iid is not None:
+                        cmd_str = str(iid)
+                except Exception:
+                    pass
 
-            cmd_str = str(cmd_id)
-            if 'RibbonListButton' in cmd_str:
+            if not cmd_str or cmd_str == 'None' or 'RibbonListButton' in cmd_str:
                 continue
 
             # Get display name
             name = ''
-            if hasattr(item, 'Text') and item.Text:
-                name = item.Text
-            elif hasattr(item, 'Name') and item.Name:
-                name = item.Name
-            elif hasattr(item, 'Id') and item.Id:
-                name = str(item.Id)
-
+            try:
+                txt = getattr(item, 'Text', None)
+                if txt:
+                    name = str(txt)
+            except Exception:
+                pass
             if not name:
-                continue
+                try:
+                    nm = getattr(item, 'Name', None)
+                    if nm:
+                        name = str(nm)
+                except Exception:
+                    pass
+            if not name:
+                name = cmd_str
 
             results.append({
-                'name': str(name),
+                'name': name,
                 'commandId': cmd_str,
                 'sourceTab': source_tab,
                 'icon': None,
@@ -80,6 +95,9 @@ def _scan_items(items, source_tab, results):
         except Exception as e:
             log.debug('Skipping item: %s', e)
             continue
+
+    if depth == 0:
+        log.debug('Tab %s: scanned %d items', source_tab, item_count)
 
 
 def get_installed_commands():
