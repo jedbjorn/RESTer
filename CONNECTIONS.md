@@ -25,10 +25,10 @@ All backend activity is logged to `rester.log` at the extension root. Shared log
 ## Install Path
 
 ```
-%APPDATA%\pyRevit\Extensions\RESTer\
+%APPDATA%\pyRevit\Extensions\RESTer.extension\
 ```
 
-The repo `RESTer/` folder IS the install folder — user copies it directly into Extensions.
+Install via pyRevit Extension Manager using the GitHub repo URL. pyRevit clones the repo and appends `.extension` to the folder name automatically.
 
 ---
 
@@ -40,7 +40,6 @@ RESTer/                                     ← repo root & install root
 ├── CONNECTIONS.md                          ← this file
 ├── extension.json                          ← PyRevit extension manifest
 ├── startup.py                              ← PyRevit startup hook — builds ribbon tab
-├── install_rester.bat                      ← One-click installer (clones to Extensions)
 ├── launch_profile_loader.bat               ← Standalone launcher for ProfileSelector
 │
 ├── RESTer.tab/
@@ -149,7 +148,7 @@ TabCreator (admin)                    ProfileSelector (user)
 
 | Decision | Detail |
 |----------|--------|
-| Install method | Run `install_rester.bat` (clones repo to Extensions, creates Documents launcher) or manually copy `RESTer/` |
+| Install method | Add via pyRevit Extension Manager (git URL) — pyRevit appends `.extension` automatically |
 | Profile re-export | Overwrites existing file (matched by profile name) |
 | Icon naming | `{toolName}.png`, appends `(1)` on collision |
 | Revit check | Once at ProfileSelector launch, not polled |
@@ -175,4 +174,3 @@ TabCreator (admin)                    ProfileSelector (user)
 | `launch_profile_loader.bat` | Done |
 | `icons/RESTer_default.png` | Done — 256x256 default icon |
 | `icon.png` (pushbutton) | Done — 32x32 |
-| `install_rester.bat` | Done — clones to Extensions, creates Documents launcher |
