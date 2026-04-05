@@ -160,7 +160,7 @@ if __name__ == '__main__':
         'RESTer - Tab Creator',
         url=_html_path,
         width=1200,
-        height=800,
+        height=1000,
         resizable=True,
         on_top=True,
         js_api=api

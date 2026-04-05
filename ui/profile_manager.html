@@ -469,6 +469,14 @@
   }
   .stack-tool-picker:focus { border-color: var(--accent); }
   .stack-tool-picker:disabled { opacity: 0.35; cursor: default; }
+  .stack-picker-results {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 2px 0;
+  }
+  .stack-picker-results::-webkit-scrollbar { width: 3px; }
+  .stack-picker-results::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
   .stack-count {
     font-family: 'DM Mono', monospace;
     font-size: 9px;
@@ -633,11 +641,11 @@
     border-bottom: 1px solid var(--border);
   }
 
-  /* Each half-section stretches equally */
+  /* Each half-section stretches to fill available vertical space */
   .fp-section {
-    flex: 1;
+    flex: 3;
     display: flex; flex-direction: column;
-    min-height: 0;
+    min-height: 180px;
     border-bottom: 1px solid var(--border);
     overflow: hidden;
   }
@@ -1256,10 +1264,6 @@
     <div class="sb-section tools">
       <div class="sb-section-head">
         <span class="sb-label">Available Tools</span>
-        <button class="record-btn" id="recBtn" onclick="toggleRecord()" style="width:auto;padding:3px 8px;font-size:9px;gap:5px;border-radius:3px">
-          <div class="rec-dot"></div>
-          Record
-        </button>
       </div>
       <div class="sb-rule"></div>
       <div class="tool-filters">
@@ -1775,6 +1779,39 @@
     renderStackList();
   }
 
+  function filterStackPicker(input, stackName) {
+    const stack = state.stacks[stackName];
+    if (!stack || stack.tools.length >= 3) return;
+    const query = input.value.toLowerCase();
+    const available = state.allTools.filter(t => !stack.tools.includes(t.name));
+    const filtered = available.filter(t => !query || t.name.toLowerCase().includes(query));
+    const container = document.getElementById('stackPickerResults_' + stackName);
+    if (!container) return;
+    if (filtered.length === 0) {
+      container.style.display = 'none';
+      return;
+    }
+    container.style.display = 'flex';
+    container.style.flexDirection = 'column';
+    container.style.gap = '1px';
+    container.innerHTML = filtered.map(t =>
+      `<div class="stack-picker-item" style="display:flex;align-items:center;gap:6px;padding:4px 8px;font-size:11px;color:var(--text2);cursor:pointer;border-radius:3px;transition:background 0.1s"
+            onmouseover="this.style.background='var(--surface2)'"
+            onmouseout="this.style.background='transparent'"
+            onmousedown="addToolToStack('${stackName}','${t.name}')">
+        <span style="font-size:10px;flex-shrink:0">${t.icon}</span>
+        ${t.name}
+      </div>`
+    ).join('');
+  }
+
+  // Close stack picker results when clicking outside
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.stack-add-row')) {
+      document.querySelectorAll('.stack-picker-results').forEach(el => el.style.display = 'none');
+    }
+  });
+
   function addToolToStack(stackName, toolName) {
     if (!toolName || !state.stacks[stackName]) return;
     const stack = state.stacks[stackName];
@@ -2222,13 +2259,16 @@
               </button>
             </div>`;
           }).join('')}
-          <div class="stack-add-row">
-            <select class="stack-tool-picker" ${atMax ? 'disabled' : ''}
-                    onchange="addToolToStack('${name}', this.value); this.value=''">
-              <option value="">${atMax ? 'Max 3 tools' : '+ Add tool…'}</option>
-              ${available.map(t => `<option value="${t.name}">${t.icon} ${t.name}</option>`).join('')}
-            </select>
-            <span class="stack-count ${atMax ? 'at-max' : ''}">${toolCount}/3</span>
+          <div class="stack-add-row" style="flex-direction:column;gap:4px">
+            <div style="display:flex;align-items:center;gap:6px;width:100%">
+              <input type="text" class="stack-tool-picker" ${atMax ? 'disabled' : ''}
+                     placeholder="${atMax ? 'Max 3 tools' : 'Search tools to add...'}"
+                     oninput="filterStackPicker(this, '${name}')"
+                     onfocus="filterStackPicker(this, '${name}')">
+              <span class="stack-count ${atMax ? 'at-max' : ''}">${toolCount}/3</span>
+            </div>
+            <div class="stack-picker-results" id="stackPickerResults_${name}" style="max-height:120px;overflow-y:auto;display:none">
+            </div>
           </div>
         </div>` : '';
 
@@ -2662,6 +2702,33 @@
         }
       }
     } catch(e) { /* ignore */ }
+
+    // Auto-record: fetch installed commands after a brief delay
+    setTimeout(async () => {
+      try {
+        if (window.pywebview && window.pywebview.api && window.pywebview.api.get_installed_commands) {
+          // Show loading message in tool list
+          document.getElementById('toolList').innerHTML =
+            '<div style="color:var(--text3);font-family:\'DM Mono\',monospace;font-size:10px;padding:10px 14px;letter-spacing:0.06em">Loading tools...</div>';
+          const cmds = await window.pywebview.api.get_installed_commands();
+          if (Array.isArray(cmds) && cmds.length > 0) {
+            const existingIds = new Set(state.allTools.map(t => t.commandId));
+            cmds.forEach(cmd => {
+              if (!existingIds.has(cmd.commandId)) {
+                state.allTools.push({
+                  name:      cmd.name,
+                  icon:      cmd.icon || '●',
+                  sourceTab: cmd.sourceTab || null,
+                  commandId: cmd.commandId,
+                });
+              }
+            });
+          }
+          renderToolList();
+          renderDetectedAddins();
+        }
+      } catch(e) { /* ignore */ }
+    }, 1000);
   });
 
   // ── INIT ──────────────────────────────────────────────────────────────────
