@@ -1279,6 +1279,7 @@
     <div class="sb-section tools">
       <div class="sb-section-head">
         <span class="sb-label">Available Tools</span>
+        <button class="sb-add" onclick="detectTools()">Detect</button>
       </div>
       <div class="sb-rule"></div>
       <div class="tool-filters">
@@ -1608,6 +1609,39 @@
         return `<span class="addin-chip${isUnknown ? ' unknown' : ''}" title="${title}">${name}${isUnknown ? ' ?' : ''}</span>`;
       }).join('');
     }
+  }
+
+  // ── DETECT TOOLS ────────────────────────────────────────────────────────────
+  function detectTools() {
+    if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.get_installed_commands) {
+      showToast('Error', 'pywebview API not available');
+      return;
+    }
+    var list = document.getElementById('toolList');
+    list.innerHTML = '<div style="color:var(--text3);font-family:\'DM Mono\',monospace;font-size:10px;padding:10px 14px;letter-spacing:0.06em">Detecting tools...</div>';
+
+    window.pywebview.api.get_installed_commands().then(function(cmds) {
+      if (Array.isArray(cmds) && cmds.length > 0) {
+        var existingIds = {};
+        state.allTools.forEach(function(t) { existingIds[t.commandId] = true; });
+        cmds.forEach(function(cmd) {
+          if (cmd.commandId && !existingIds[cmd.commandId]) {
+            state.allTools.push({
+              name:      cmd.name,
+              icon:      cmd.icon || '',
+              sourceTab: cmd.sourceTab || null,
+              commandId: cmd.commandId,
+            });
+          }
+        });
+      }
+      renderToolList();
+      renderDetectedAddins();
+      showToast('Detect', 'Found ' + state.allTools.length + ' tools');
+    }).catch(function(err) {
+      list.innerHTML = '';
+      showToast('Error', 'Detection failed: ' + err);
+    });
   }
 
   // ── TOOL LIST ──────────────────────────────────────────────────────────────
@@ -2753,32 +2787,6 @@
       }
     } catch(e) { /* ignore */ }
 
-    // Auto-record: fetch installed commands after a brief delay
-    setTimeout(async () => {
-      try {
-        if (window.pywebview && window.pywebview.api && window.pywebview.api.get_installed_commands) {
-          // Show loading message in tool list
-          document.getElementById('toolList').innerHTML =
-            '<div style="color:var(--text3);font-family:\'DM Mono\',monospace;font-size:10px;padding:10px 14px;letter-spacing:0.06em">Loading tools...</div>';
-          const cmds = await window.pywebview.api.get_installed_commands();
-          if (Array.isArray(cmds) && cmds.length > 0) {
-            const existingIds = new Set(state.allTools.map(t => t.commandId));
-            cmds.forEach(cmd => {
-              if (!existingIds.has(cmd.commandId)) {
-                state.allTools.push({
-                  name:      cmd.name,
-                  icon:      cmd.icon || '●',
-                  sourceTab: cmd.sourceTab || null,
-                  commandId: cmd.commandId,
-                });
-              }
-            });
-          }
-          renderToolList();
-          renderDetectedAddins();
-        }
-      } catch(e) { /* ignore */ }
-    }, 1000);
   });
 
   // ── INIT ──────────────────────────────────────────────────────────────────
