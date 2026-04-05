@@ -106,6 +106,8 @@ def _get_revit_version():
 def _load_icon(icon_path):
     """Load a PNG file as a BitmapImage for the Revit ribbon."""
     try:
+        import clr
+        clr.AddReference('PresentationCore')
         from System.Windows.Media.Imaging import BitmapImage
         from System import Uri, UriKind
         if icon_path and os.path.exists(icon_path):
@@ -223,7 +225,9 @@ def _create_tool_button(slot):
 
         # Bind click to PostCommand
         if command_id:
-            btn.CommandHandler = _PostCommandHandler(command_id)
+            handler = _make_command_handler(command_id)
+            if handler:
+                btn.CommandHandler = handler
 
         log.debug('Created tool button: %s -> %s', name, command_id)
         return btn
@@ -274,25 +278,42 @@ def _create_stack_button(stack_name, stack_def):
         return None
 
 
-class _PostCommandHandler(object):
-    """ICommand handler that posts a Revit command by commandId string."""
+def _make_command_handler(command_id):
+    """Create an ICommand-compatible handler for IronPython."""
+    try:
+        import clr
+        clr.AddReference('PresentationCore')
+        from System.Windows.Input import ICommand
+        from System import EventHandler
 
-    def __init__(self, command_id):
-        self._command_id = command_id
+        class CommandHandler(ICommand):
+            def __init__(self):
+                self._command_id = command_id
 
-    def Execute(self, parameter):
-        try:
-            from Autodesk.Revit.UI import RevitCommandId
-            cmd = RevitCommandId.LookupCommandId(self._command_id)
-            if cmd:
-                __revit__.PostCommand(cmd)  # noqa: F821
-            else:
-                log.warning('Command not found: %s', self._command_id)
-        except Exception as e:
-            log.error('PostCommand failed for %s: %s', self._command_id, e)
+            def add_CanExecuteChanged(self, handler):
+                pass
 
-    def CanExecute(self, parameter):
-        return True
+            def remove_CanExecuteChanged(self, handler):
+                pass
+
+            def CanExecute(self, parameter):
+                return True
+
+            def Execute(self, parameter):
+                try:
+                    from Autodesk.Revit.UI import RevitCommandId
+                    cmd = RevitCommandId.LookupCommandId(self._command_id)
+                    if cmd:
+                        __revit__.PostCommand(cmd)  # noqa: F821
+                    else:
+                        log.warning('Command not found: %s', self._command_id)
+                except Exception as e:
+                    log.error('PostCommand failed for %s: %s', self._command_id, e)
+
+        return CommandHandler()
+    except Exception as e:
+        log.error('Failed to create command handler for %s: %s', command_id, e)
+        return None
 
 
 # --- Main startup logic ---
