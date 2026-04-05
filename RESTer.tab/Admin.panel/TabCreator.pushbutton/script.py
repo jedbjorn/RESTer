@@ -24,6 +24,66 @@ def get_revit_version():
         return None
 
 
+def _scan_items(items, source_tab, results):
+    """Recursively scan ribbon items, descending into containers."""
+    for item in items:
+        try:
+            item_type = type(item).__name__
+
+            # Skip separators
+            if 'Separator' in item_type:
+                continue
+
+            # Recurse into container items (RowPanel, StackedPanel, etc.)
+            if hasattr(item, 'Items') and item.Items is not None:
+                try:
+                    child_items = item.Items
+                    if child_items is not None and hasattr(child_items, '__iter__'):
+                        _scan_items(child_items, source_tab, results)
+                except Exception:
+                    pass
+
+            # Skip list buttons (dropdown containers) but scan their children
+            if 'ListButton' in item_type:
+                continue
+
+            # Get command ID
+            cmd_id = None
+            if hasattr(item, 'CommandId') and item.CommandId:
+                cmd_id = item.CommandId
+            if not cmd_id and hasattr(item, 'Id') and item.Id:
+                cmd_id = item.Id
+
+            if not cmd_id:
+                continue
+
+            cmd_str = str(cmd_id)
+            if 'RibbonListButton' in cmd_str:
+                continue
+
+            # Get display name
+            name = ''
+            if hasattr(item, 'Text') and item.Text:
+                name = item.Text
+            elif hasattr(item, 'Name') and item.Name:
+                name = item.Name
+            elif hasattr(item, 'Id') and item.Id:
+                name = str(item.Id)
+
+            if not name:
+                continue
+
+            results.append({
+                'name': str(name),
+                'commandId': cmd_str,
+                'sourceTab': source_tab,
+                'icon': None,
+            })
+        except Exception as e:
+            log.debug('Skipping item: %s', e)
+            continue
+
+
 def get_installed_commands():
     results = []
     try:
@@ -54,43 +114,7 @@ def get_installed_commands():
                     log.debug('Skipping panel: %s', e)
                     continue
 
-                for item in items:
-                    try:
-                        item_type = type(item).__name__
-                        if 'ListButton' in item_type or 'Separator' in item_type:
-                            continue
-
-                        cmd_id = None
-                        if hasattr(item, 'CommandId'):
-                            cmd_id = item.CommandId
-                        elif hasattr(item, 'Id'):
-                            cmd_id = item.Id
-
-                        if not cmd_id:
-                            continue
-
-                        cmd_str = str(cmd_id)
-
-                        if 'RibbonListButton' in cmd_str:
-                            continue
-
-                        name = ''
-                        if hasattr(item, 'Text') and item.Text:
-                            name = item.Text
-                        elif hasattr(item, 'Name') and item.Name:
-                            name = item.Name
-                        elif hasattr(item, 'Id'):
-                            name = item.Id
-
-                        results.append({
-                            'name': str(name),
-                            'commandId': cmd_str,
-                            'sourceTab': source_tab,
-                            'icon': None,
-                        })
-                    except Exception as e:
-                        log.debug('Skipping item: %s', e)
-                        continue
+                _scan_items(items, source_tab, results)
 
     except Exception as e:
         log.error('Failed to scan ribbon: %s', e)
