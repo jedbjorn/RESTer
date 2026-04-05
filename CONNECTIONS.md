@@ -101,7 +101,7 @@ RESTer/
 | `get_revit_versions()` | `ProfileSelectorAPI` | `get_revit_versions()` | Scan `%APPDATA%\Autodesk\Revit\Addins\` for year dirs |
 | `is_revit_running()` | `ProfileSelectorAPI` | `is_revit_running()` | Check for `Revit.exe` process (once at launch) |
 | `add_profile()` | `ProfileSelectorAPI` | `add_profile()` | File dialog → validate → copy to `app/profiles/` |
-| `load_profile(name, disable)` | `ProfileSelectorAPI` | `load_profile(name, disable)` | Write `active_profile.json`, apply hideRules |
+| `load_profile(name, disable, version)` | `ProfileSelectorAPI` | `load_profile(name, disable, version)` | Write `active_profile.json`, apply hideRules |
 | `remove_profile(name)` | `ProfileSelectorAPI` | `remove_profile(name)` | Delete from `app/profiles/` |
 | `restore_addins(version)` | `ProfileSelectorAPI` | `restore_addins(version)` | Rename `.addin.inactive` → `.addin` |
 
@@ -171,7 +171,7 @@ TabCreator (admin)                    ProfileSelector (user)
 | `extension.json` | Not started |
 | `startup.py` | Not started |
 | `script.py` | Not started |
-| `profile_selector.py` | Not started |
-| `addin_scanner.py` | Not started |
-| `launch_profile_loader.bat` | Not started |
+| `profile_selector.py` | Done |
+| `addin_scanner.py` | Done |
+| `launch_profile_loader.bat` | Done |
 | `icons/` (default icon) | Not started |

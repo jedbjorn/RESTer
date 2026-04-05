@@ -998,7 +998,7 @@
     if (revitRunning || !selectedProfile) return;
     const disableNonRequired = document.getElementById('disableAddinsCheck').checked;
 
-    window.pywebview.api.load_profile(selectedProfile.profile, disableNonRequired).then(function(result) {
+    window.pywebview.api.load_profile(selectedProfile.profile, disableNonRequired, currentRevitVersion).then(function(result) {
       activeProfileName = selectedProfile.profile;
       renderCards();
       const idx  = profiles.findIndex(p => p.profile === activeProfileName);
