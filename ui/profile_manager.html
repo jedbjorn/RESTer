@@ -643,6 +643,33 @@
   }
   .fp-section:last-child { border-bottom: none; }
 
+  /* Pinned button at bottom of fp-section */
+  .fp-section-footer {
+    flex-shrink: 0;
+    padding: 6px 10px 8px;
+    border-top: 1px solid var(--border);
+  }
+  .fp-section-footer .btn-add-panel {
+    width: 100%;
+    padding: 7px;
+    background: rgba(79,142,247,0.08);
+    border: 1px solid rgba(79,142,247,0.35);
+    border-radius: 4px;
+    color: var(--accent);
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    transition: all 0.15s;
+  }
+  .fp-section-footer .btn-add-panel:hover {
+    background: rgba(79,142,247,0.15);
+    border-color: var(--accent);
+  }
+
   .fp-section-head {
     padding: 8px 14px 6px;
     flex-shrink: 0;
@@ -1046,7 +1073,7 @@
 
   /* ── TAB PREVIEW ── */
   .tab-preview {
-    height: 188px; flex-shrink: 0;
+    height: 160px; flex-shrink: 0;
     display: flex; flex-direction: column;
     background: var(--bg);
   }
@@ -1316,6 +1343,9 @@
               <span class="fp-hint">drag to reorder</span>
             </div>
             <div class="slot-list" id="slotList" ondragleave="onSlotListDragLeave(event)"></div>
+            <div class="fp-section-footer">
+              <button class="btn-add-panel" onclick="createNewPanel()">+ Add Panel</button>
+            </div>
           </div>
 
           <!-- Panels in Tab — other half -->
@@ -1708,6 +1738,16 @@
     renderTabCanvas();
     renderPanelSlotList();
     checkExportReady();
+  }
+
+  function createNewPanel() {
+    let idx = Object.keys(state.panels).length + 1;
+    let name = 'Panel ' + idx;
+    while (state.panels[name]) { idx++; name = 'Panel ' + idx; }
+    const color = '#4f8ef7';
+    state.panels[name] = { color: color, active: true, slots: [] };
+    selectPanel(name, color);
+    renderAll();
   }
 
   // ── STACK EXPANSION ────────────────────────────────────────────────────────
