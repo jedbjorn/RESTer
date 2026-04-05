@@ -1,0 +1,5 @@
+rester.log
+app/active_profile.json
+app/user_addin_overrides.json
+__pycache__/
+*.pyc

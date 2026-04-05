@@ -16,6 +16,12 @@ RESTer is a two-part Revit toolbar profile system built on PyRevit.
 
 ---
 
+## Logging
+
+All backend activity is logged to `rester.log` at the extension root. Shared logger via `app/logger.py` — modules call `get_logger('module_name')`. Log includes timestamps, severity, module, and message.
+
+---
+
 ## Install Path
 
 ```

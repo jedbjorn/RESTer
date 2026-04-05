@@ -1,5 +1,8 @@
 import os
 import json
+from logger import get_logger
+
+log = get_logger('addin_scanner')
 
 PROTECTED_ADDINS = {'pyRevit.addin'}
 
@@ -26,6 +29,7 @@ def _save_overrides(overrides):
 
 
 def _record_fuzzy_match(tab_name, filename):
+    log.info('Fuzzy match: %s -> %s', tab_name, filename)
     overrides = _load_overrides()
     overrides[tab_name] = filename
     _save_overrides(overrides)
@@ -40,11 +44,13 @@ def get_addins_dir(revit_version):
 def get_installed_revit_versions():
     addins_root = os.path.join(os.environ['APPDATA'], 'Autodesk', 'Revit', 'Addins')
     if not os.path.isdir(addins_root):
+        log.warning('Revit Addins dir not found: %s', addins_root)
         return []
     versions = []
     for d in os.listdir(addins_root):
         if d.isdigit() and os.path.isdir(os.path.join(addins_root, d)):
             versions.append(d)
+    log.info('Installed Revit versions: %s', versions)
     return sorted(versions)
 
 
@@ -65,9 +71,11 @@ def _fuzzy_find(tab_name, addins_dir):
 
 def check_addins(required_addins, revit_version):
     """Returns dict: { tabName: 'present' | 'missing' | 'unknown' }"""
+    log.info('Checking addins for Revit %s: %s', revit_version, required_addins)
     lookup = load_addin_lookup()
     addins_dir = get_addins_dir(revit_version)
     if not os.path.isdir(addins_dir):
+        log.warning('Addins dir not found: %s', addins_dir)
         return {name: 'unknown' for name in required_addins}
 
     installed_files = set(os.listdir(addins_dir))
@@ -85,33 +93,41 @@ def check_addins(required_addins, revit_version):
             else:
                 results[tab_name] = 'unknown'
 
+    log.info('Addin check results: %s', results)
     return results
 
 
 def apply_hide_rules(hide_rules, revit_version):
-    """Rename .addin → .addin.inactive for each tab in hide_rules."""
+    """Rename .addin -> .addin.inactive for each tab in hide_rules."""
+    log.info('Applying hide rules for Revit %s: %s', revit_version, hide_rules)
     lookup = load_addin_lookup()
     addins_dir = get_addins_dir(revit_version)
     if not os.path.isdir(addins_dir):
+        log.warning('Addins dir not found: %s', addins_dir)
         return
 
     for tab_name in hide_rules:
         if tab_name == 'pyRevit':
+            log.debug('Skipping protected addin: pyRevit')
             continue
         entry = lookup.get(tab_name)
         filename = entry['file'] if entry else _fuzzy_find(tab_name, addins_dir)
         if not filename:
+            log.warning('No .addin file found for: %s', tab_name)
             continue
         src = os.path.join(addins_dir, filename)
         dest = src + '.inactive'
         if os.path.exists(src):
             os.rename(src, dest)
+            log.info('Hidden: %s -> %s', filename, filename + '.inactive')
 
 
 def restore_all_addins(revit_version):
-    """Rename all .addin.inactive → .addin (skip pyRevit)."""
+    """Rename all .addin.inactive -> .addin (skip pyRevit)."""
+    log.info('Restoring all addins for Revit %s', revit_version)
     addins_dir = get_addins_dir(revit_version)
     if not os.path.isdir(addins_dir):
+        log.warning('Addins dir not found: %s', addins_dir)
         return
 
     for f in os.listdir(addins_dir):
@@ -119,15 +135,18 @@ def restore_all_addins(revit_version):
             src = os.path.join(addins_dir, f)
             dest = src.replace('.addin.inactive', '.addin')
             os.rename(src, dest)
+            log.info('Restored: %s', f.replace('.addin.inactive', '.addin'))
 
 
 def disable_non_required_addins(required_addins, revit_version):
     """Disable all .addin files except required ones and protected ones."""
+    log.info('Disabling non-required addins for Revit %s (keeping: %s)', revit_version, required_addins)
     lookup = load_addin_lookup()
     keep_files = {lookup[a]['file'] for a in required_addins if a in lookup}
     keep_files.update(PROTECTED_ADDINS)
     addins_dir = get_addins_dir(revit_version)
     if not os.path.isdir(addins_dir):
+        log.warning('Addins dir not found: %s', addins_dir)
         return
 
     for f in os.listdir(addins_dir):
@@ -136,3 +155,4 @@ def disable_non_required_addins(required_addins, revit_version):
                 os.path.join(addins_dir, f),
                 os.path.join(addins_dir, f + '.inactive')
             )
+            log.info('Disabled: %s', f)
