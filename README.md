@@ -11,11 +11,13 @@ Admins create toolbar profiles inside Revit. Users load profiles outside Revit t
 ### 1. Dependencies
 
 - [pyRevit](https://github.com/pyrevitlabs/pyRevit) (4.8+)
-- [Python 3](https://www.python.org/downloads/) (added to PATH)
-- pywebview:
+- [Python 3](https://www.python.org/downloads/) — **check "Add Python to PATH" during install**
+- pywebview — open PowerShell and run:
+  ```powershell
+  python -m pip install pywebview
   ```
-  pip install pywebview
-  ```
+
+To verify Python is installed and in PATH, run `python --version` in PowerShell. You should see something like `Python 3.x.x`.
 
 ### 2. Add Extension
 
