@@ -98,14 +98,16 @@ def _scan_items(items, source_tab, results, depth=0):
 
     if depth == 0:
         log.debug('Tab %s: scanned %d raw items', source_tab, item_count)
-        # Diagnostic: if we found items but no commands, dump first few item details
-        if item_count > 0 and not any(r.get('sourceTab') == source_tab for r in results):
+        # Diagnostic: dump item details for Add-Ins tab (to find Kinship)
+        # or any tab with items but no commands
+        dump_tab = (source_tab == 'Add-Ins') or (item_count > 0 and not any(r.get('sourceTab') == source_tab for r in results))
+        if dump_tab:
             for i, item in enumerate(items):
-                if i >= 3:
+                if i >= 5:
                     break
                 try:
                     props = {}
-                    for attr in ['CommandId', 'Id', 'Text', 'Name', 'CommandParameter', 'Tag']:
+                    for attr in ['CommandId', 'Id', 'Text', 'Name', 'CommandParameter', 'Tag', 'Description', 'ToolTip']:
                         try:
                             val = getattr(item, attr, '---')
                             props[attr] = str(val) if val is not None else 'None'
