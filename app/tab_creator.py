@@ -56,36 +56,43 @@ class TabCreatorAPI:
             log.error('Invalid export JSON: %s', e)
             return {'ok': False, 'error': 'Invalid JSON: ' + str(e)}
 
-        profile_name = profile.get('profile', 'Untitled')
-        export_date = profile.get('exportDate', 'unknown')
-        filename = '{}_{}.json'.format(profile_name, export_date)
+        try:
+            profile_name = profile.get('profile', 'Untitled')
+            export_date = profile.get('exportDate', 'unknown')
+            filename = '{}_{}.json'.format(profile_name, export_date)
 
-        # Overwrite existing profile with same name
-        for fname in os.listdir(_profiles_dir):
-            if fname.endswith('.json'):
-                try:
-                    with open(os.path.join(_profiles_dir, fname), 'r') as f:
-                        existing = json.load(f)
-                    if existing.get('profile') == profile_name:
-                        os.remove(os.path.join(_profiles_dir, fname))
-                        log.info('Overwriting existing: %s', fname)
-                        break
-                except (json.JSONDecodeError, IOError):
-                    continue
+            # Overwrite existing profile with same name
+            for fname in os.listdir(_profiles_dir):
+                if fname.endswith('.json'):
+                    try:
+                        with open(os.path.join(_profiles_dir, fname), 'r', encoding='utf-8') as f:
+                            existing = json.load(f)
+                        if existing.get('profile') == profile_name:
+                            os.remove(os.path.join(_profiles_dir, fname))
+                            log.info('Overwriting existing: %s', fname)
+                            break
+                    except (json.JSONDecodeError, IOError):
+                        continue
 
-        dest_path = os.path.join(_profiles_dir, filename)
-        with open(dest_path, 'w') as f:
-            f.write(json_str)
-        log.info('Saved to: %s', dest_path)
+            dest_path = os.path.join(_profiles_dir, filename)
+            with open(dest_path, 'w', encoding='utf-8') as f:
+                f.write(json_str)
+            log.info('Saved to: %s', dest_path)
 
-        desktop = os.path.join(os.environ.get('USERPROFILE', ''), 'Desktop')
-        desktop_path = None
-        if os.path.isdir(desktop):
-            desktop_path = os.path.join(desktop, filename)
-            shutil.copy2(dest_path, desktop_path)
-            log.info('Copied to Desktop: %s', desktop_path)
+            desktop = os.path.join(os.environ.get('USERPROFILE', ''), 'Desktop')
+            desktop_path = None
+            if os.path.isdir(desktop):
+                desktop_path = os.path.join(desktop, filename)
+                shutil.copy2(dest_path, desktop_path)
+                log.info('Copied to Desktop: %s', desktop_path)
 
-        return {'ok': True, 'path': dest_path, 'desktop_path': desktop_path}
+            return {'ok': True, 'path': dest_path, 'desktop_path': desktop_path}
+
+        except Exception as e:
+            log.error('Export failed: %s', e)
+            import traceback
+            log.error(traceback.format_exc())
+            return {'ok': False, 'error': str(e)}
 
     def pick_icon(self, tool_name):
         log.info('Picking icon for tool: %s', tool_name)

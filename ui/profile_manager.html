@@ -1073,7 +1073,7 @@
 
   /* ── TAB PREVIEW ── */
   .tab-preview {
-    height: 160px; flex-shrink: 0;
+    height: 176px; flex-shrink: 0;
     display: flex; flex-direction: column;
     background: var(--bg);
   }
@@ -1392,6 +1392,7 @@
           → <span id="tabNameDisplay" style="color:var(--text2)">Design</span>
         </div>
         <div class="tab-preview-lbl" style="margin-left:auto">Tab Preview</div>
+        <button class="sb-add" onclick="renderTabCanvas()" style="font-size:9px;padding:2px 8px">Update Preview</button>
         <div>
           <button class="export-btn" id="exportBtn" onclick="exportConfig()">Export Config →</button>
         </div>
@@ -2383,8 +2384,16 @@
         <div class="panel-slot-dot" style="background:${panel.color}"></div>
         ${name}
         <span class="panel-slot-count">· ${toolCount} tool${toolCount !== 1 ? 's' : ''}</span>
+        <span class="slot-remove" onclick="event.stopPropagation();deletePanel('${name}')" style="margin-left:auto;cursor:pointer;color:var(--text3);font-size:13px" title="Delete panel">&times;</span>
       </div>`;
     }).join('');
+  }
+
+  function deletePanel(name) {
+    if (!confirm('Delete panel "' + name + '"?')) return;
+    delete state.panels[name];
+    if (state.currentPanel === name) state.currentPanel = null;
+    renderAll();
   }
 
   function onPanelDragStart(event, name) {
