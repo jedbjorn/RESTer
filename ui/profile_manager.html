@@ -2578,6 +2578,9 @@
     if (window.pywebview && window.pywebview.api && window.pywebview.api.load_profile_into_editor) {
       window.pywebview.api.load_profile_into_editor(name).then(profile => {
         if (!profile) return;
+        if (profile._copied) {
+          showToast('Copy Created', profile._message || 'Profile currently loaded. A copy has been made for editing.', 5000);
+        }
         applyProfileToEditor(profile);
       }).catch(err => {
         showToast('Load failed', String(err));

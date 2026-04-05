@@ -55,6 +55,21 @@ def _safe_filename(s):
     return re.sub(r'[\\/:*?"<>|]', '_', s).strip()
 
 
+_active_profile_path = os.path.join(_root, 'app', 'active_profile.json')
+
+
+def _get_active_profile_name():
+    """Return the name of the currently loaded profile, or None."""
+    if not os.path.exists(_active_profile_path):
+        return None
+    try:
+        with open(_active_profile_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return data.get('profile')
+    except (ValueError, IOError):
+        return None
+
+
 def _find_profile(profile_name):
     """Find a profile by name, return (filename, data) or (None, None)."""
     for fname in os.listdir(_profiles_dir):
@@ -68,6 +83,23 @@ def _find_profile(profile_name):
             except (json.JSONDecodeError, IOError, UnicodeDecodeError):
                 continue
     return None, None
+
+
+def _get_all_profile_names():
+    """Return set of all existing profile names."""
+    names = set()
+    for fname in os.listdir(_profiles_dir):
+        if fname.endswith('.json'):
+            fpath = os.path.join(_profiles_dir, fname)
+            try:
+                with open(fpath, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                name = data.get('profile')
+                if name:
+                    names.add(name)
+            except (json.JSONDecodeError, IOError, UnicodeDecodeError):
+                continue
+    return names
 
 
 class TabCreatorAPI:
@@ -97,13 +129,19 @@ class TabCreatorAPI:
             return {'ok': False, 'error': 'Invalid JSON: ' + str(e)}
 
         try:
-            profile_name = _safe_filename(profile.get('profile', 'Untitled'))
+            raw_name = profile.get('profile', 'Untitled')
+            profile_name = _safe_filename(raw_name)
             export_date = _safe_filename(profile.get('exportDate', 'unknown'))
             filename = '%s_%s.json' % (profile_name, export_date)
 
-            # Overwrite existing profile with same name
-            existing_fname, _ = _find_profile(profile.get('profile', ''))
+            # Check if a different profile with this name exists
+            existing_fname, existing_data = _find_profile(raw_name)
             if existing_fname:
+                # Check if the active profile has this name (file may be locked by Revit)
+                active_name = _get_active_profile_name()
+                if active_name and active_name == raw_name:
+                    log.error('Cannot overwrite active profile: %s', raw_name)
+                    return {'ok': False, 'error': 'Cannot overwrite a profile that is currently loaded in Revit. Use a different name.'}
                 os.remove(os.path.join(_profiles_dir, existing_fname))
                 log.info('Overwriting existing: %s', existing_fname)
 
@@ -173,11 +211,27 @@ class TabCreatorAPI:
     def load_profile_into_editor(self, profile_name):
         log.info('Loading profile into editor: %s', profile_name)
         _, data = _find_profile(profile_name)
-        if data:
-            log.info('Found profile: %s', profile_name)
-            return data
-        log.error('Profile not found: %s', profile_name)
-        return None
+        if not data:
+            log.error('Profile not found: %s', profile_name)
+            return None
+
+        # Check if this profile is currently loaded in Revit
+        active_name = _get_active_profile_name()
+        if active_name and active_name == profile_name:
+            # Make a copy for editing
+            copy_name = profile_name + ' (Copy)'
+            # Ensure unique copy name
+            existing = _get_all_profile_names()
+            counter = 1
+            while copy_name in existing:
+                counter += 1
+                copy_name = '%s (Copy %d)' % (profile_name, counter)
+            data['profile'] = copy_name
+            log.info('Profile is active in Revit. Created copy: %s', copy_name)
+            return {'_copied': True, '_message': 'Profile currently loaded. A copy has been made for editing.', **data}
+
+        log.info('Found profile: %s', profile_name)
+        return data
 
     def open_profiles_folder(self):
         log.info('Opening profiles folder: %s', _profiles_dir)
