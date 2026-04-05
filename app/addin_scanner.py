@@ -214,6 +214,7 @@ def check_addins(required_addins, revit_version):
 
     addin_files = _find_all_addin_files(search_dirs)
     active_filenames = set(f for f in addin_files.keys() if f.endswith('.addin'))
+    log.debug('Found %d unique .addin files: %s', len(active_filenames), sorted(active_filenames))
 
     results = {}
     for tab_name in required_addins:
@@ -223,12 +224,15 @@ def check_addins(required_addins, revit_version):
             continue
 
         entry = lookup.get(tab_name)
-        if entry:
-            results[tab_name] = 'present' if entry['file'] in active_filenames else 'missing'
+        if entry and entry['file'] in active_filenames:
+            results[tab_name] = 'present'
         else:
+            # Fuzzy search: filename match then content search
             fname, fpath = _fuzzy_find(tab_name, search_dirs, overrides)
             if fname:
                 results[tab_name] = 'present'
+            elif entry:
+                results[tab_name] = 'missing'
             else:
                 results[tab_name] = 'unknown'
 
