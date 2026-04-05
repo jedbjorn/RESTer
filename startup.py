@@ -345,12 +345,31 @@ def _make_command_handler(command_id):
 
             def Execute(self, parameter):
                 try:
-                    from Autodesk.Revit.UI import RevitCommandId
-                    cmd = RevitCommandId.LookupCommandId(self._command_id)
+                    from Autodesk.Revit.UI import RevitCommandId, PostableCommand
+                    cid = self._command_id
+
+                    # Try direct lookup first (works for most commands)
+                    cmd = RevitCommandId.LookupCommandId(cid)
                     if cmd:
-                        __revit__.PostCommand(cmd)  # noqa: F821
-                    else:
-                        log.warning('Command not found: %s', self._command_id)
+                        try:
+                            __revit__.PostCommand(cmd)  # noqa: F821
+                            return
+                        except Exception:
+                            pass
+
+                    # Try PostableCommand enum lookup (for ID_ style commands)
+                    if cid.startswith('ID_'):
+                        try:
+                            postable = getattr(PostableCommand, cid, None)
+                            if postable is not None:
+                                pcmd = RevitCommandId.LookupPostableCommandId(postable)
+                                if pcmd:
+                                    __revit__.PostCommand(pcmd)  # noqa: F821
+                                    return
+                        except Exception:
+                            pass
+
+                    log.warning('Command not postable: %s', cid)
                 except Exception as e:
                     log.error('PostCommand failed for %s: %s', self._command_id, e)
 

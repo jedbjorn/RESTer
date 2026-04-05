@@ -1886,6 +1886,7 @@
     el.classList.add('on');
     state.panels[state.currentPanel].color = color;
     applyColorToMock(color);
+    renderMockPreview();
     renderTabCanvas();
     renderPanelList();
   }
@@ -1904,6 +1905,7 @@
     document.querySelectorAll('.swatch').forEach(s => s.classList.remove('on'));
     state.panels[state.currentPanel].color = color;
     applyColorToMock(color);
+    renderMockPreview();
     renderTabCanvas();
     renderPanelList();
     document.getElementById('hexInput').value = '';
@@ -1925,6 +1927,7 @@
     el.classList.add('on');
     state.panels[state.currentPanel].color = color;
     applyColorToMock(color);
+    renderMockPreview();
     renderTabCanvas();
     renderPanelList();
     document.getElementById('hexInput').value = '';
@@ -2655,17 +2658,18 @@
       }
     }
 
-    // Rebuild allTools from panel slots (collect unique tools)
-    const seen = new Set();
-    state.allTools = [];
-    // Gather from panel slots
-    Object.values(state.panels).forEach(panel => {
-      panel.slots.forEach(slot => {
-        if (slot.type === 'tool' && slot.commandId && !seen.has(slot.commandId)) {
-          seen.add(slot.commandId);
-          const tool = state.allTools.find(t => t.name === slot.name);
-          if (!tool) {
-            // Derive sourceTab from commandId pattern
+    // Do NOT rebuild state.allTools here — it is populated by the auto-record
+    // scan with ALL Revit commands. The profile's tools are already placed in
+    // panels/stacks above, so renderToolList() will mark them as checked.
+    // Only fall back to rebuilding if auto-record hasn't run yet (allTools empty).
+    if (!state.allTools || state.allTools.length === 0) {
+      const seen = new Set();
+      state.allTools = [];
+      // Gather from panel slots
+      Object.values(state.panels).forEach(panel => {
+        panel.slots.forEach(slot => {
+          if (slot.type === 'tool' && slot.commandId && !seen.has(slot.commandId)) {
+            seen.add(slot.commandId);
             let sourceTab = null;
             const m = slot.commandId && slot.commandId.match(/^CustomCtrl_%CustomCtrl_%([^%]+)%/);
             if (m) sourceTab = m[1];
@@ -2676,35 +2680,34 @@
               commandId: slot.commandId,
             });
           }
-        }
+        });
       });
-    });
-    // Gather from stacks
-    Object.values(state.stacks).forEach(stack => {
-      stack.tools.forEach(toolName => {
-        if (!state.allTools.find(t => t.name === toolName)) {
-          // Try to find commandId from stack defs in the profile
-          let cmdId = null;
-          if (profile.stacks) {
-            Object.values(profile.stacks).forEach(sd => {
-              const found = (sd.tools || []).find(t => (t.name || t) === toolName);
-              if (found && found.commandId) cmdId = found.commandId;
+      // Gather from stacks
+      Object.values(state.stacks).forEach(stack => {
+        stack.tools.forEach(toolName => {
+          if (!state.allTools.find(t => t.name === toolName)) {
+            let cmdId = null;
+            if (profile.stacks) {
+              Object.values(profile.stacks).forEach(sd => {
+                const found = (sd.tools || []).find(t => (t.name || t) === toolName);
+                if (found && found.commandId) cmdId = found.commandId;
+              });
+            }
+            let sourceTab = null;
+            if (cmdId) {
+              const m = cmdId.match(/^CustomCtrl_%CustomCtrl_%([^%]+)%/);
+              if (m) sourceTab = m[1];
+            }
+            state.allTools.push({
+              name: toolName,
+              icon: '●',
+              sourceTab: sourceTab,
+              commandId: cmdId,
             });
           }
-          let sourceTab = null;
-          if (cmdId) {
-            const m = cmdId.match(/^CustomCtrl_%CustomCtrl_%([^%]+)%/);
-            if (m) sourceTab = m[1];
-          }
-          state.allTools.push({
-            name: toolName,
-            icon: '●',
-            sourceTab: sourceTab,
-            commandId: cmdId,
-          });
-        }
+        });
       });
-    });
+    }
 
     state.expandedStack = null;
 
