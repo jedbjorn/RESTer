@@ -1277,7 +1277,7 @@
     <div class="sb-section stacks">
       <div class="sb-section-head">
         <span class="sb-label">Stacks</span>
-        <button class="sb-add">New +</button>
+        <button class="sb-add" onclick="createNewStack()">New +</button>
       </div>
       <div class="sb-rule"></div>
       <div class="sb-items" id="stackList">
@@ -1289,7 +1289,7 @@
     <div class="sb-section panels">
       <div class="sb-section-head">
         <span class="sb-label">Panels</span>
-        <button class="sb-add">New +</button>
+        <button class="sb-add" onclick="createNewPanel()">New +</button>
       </div>
       <div class="sb-rule"></div>
       <div class="sb-items" id="panelList">
@@ -1657,7 +1657,15 @@
   // ── TOGGLE TOOL IN PANEL ───────────────────────────────────────────────────
   // Called when user clicks a tool row in the Available Tools list.
   function toggleToolInPanel(name) {
-    if (!state.currentPanel || !state.panels[state.currentPanel]) return;
+    if (!state.currentPanel || !state.panels[state.currentPanel]) {
+      // Auto-create a panel if none exist, otherwise prompt user to select one
+      if (Object.keys(state.panels).length === 0) {
+        createNewPanel();
+      } else {
+        showToast('No panel selected', 'Select or create a panel first.');
+        return;
+      }
+    }
     const slots = state.panels[state.currentPanel].slots;
     const idx   = slots.findIndex(s => s.type === 'tool' && s.name === name);
     if (idx !== -1) {
@@ -1747,6 +1755,16 @@
     const color = '#4f8ef7';
     state.panels[name] = { color: color, active: true, slots: [] };
     selectPanel(name, color);
+    renderAll();
+  }
+
+  // ── CREATE NEW STACK ────────────────────────────────────────────────────────
+  function createNewStack() {
+    let idx = Object.keys(state.stacks).length + 1;
+    let name = 'Stack ' + idx;
+    while (state.stacks[name]) { idx++; name = 'Stack ' + idx; }
+    state.stacks[name] = { tools: [] };
+    state.expandedStack = name;
     renderAll();
   }
 
