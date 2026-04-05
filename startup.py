@@ -243,13 +243,23 @@ def _create_tool_button(slot):
     command_id = slot.get('commandId', '')
 
     try:
+        import clr
+        clr.AddReference('PresentationFramework')
+
         btn = RibbonButton()
         btn.Text = name
         btn.Id = 'RESTer_Btn_' + name.replace(' ', '_')
         btn.ShowText = True
         btn.Size = RibbonItemSize.Large
 
-        # 32x32 icon (Large size shows icon on top, text below by default)
+        # Text below icon
+        try:
+            from System.Windows.Controls import Orientation
+            btn.Orientation = Orientation.Vertical
+        except Exception as e:
+            log.debug('Could not set orientation for %s: %s', name, e)
+
+        # 32x32 icon
         icon = _load_icon(_get_icon_path(slot, small=False))
         if icon:
             btn.LargeImage = icon
