@@ -47,10 +47,13 @@ def _scan_items(items, source_tab, results):
             if 'ListButton' in item_type:
                 continue
 
-            # Only keep items with a real CommandId (not just an Id)
-            if not hasattr(item, 'CommandId') or not item.CommandId:
+            # Get CommandId - prefer CommandId, fall back to Id for pyRevit tools
+            cmd_id = None
+            if hasattr(item, 'CommandId') and item.CommandId:
+                cmd_id = item.CommandId
+
+            if not cmd_id:
                 continue
-            cmd_id = item.CommandId
 
             cmd_str = str(cmd_id)
             if 'RibbonListButton' in cmd_str:
@@ -87,6 +90,9 @@ def get_installed_commands():
         from Autodesk.Windows import ComponentManager
 
         ribbon = ComponentManager.Ribbon
+        if ribbon is None or ribbon.Tabs is None or ribbon.Tabs.Count == 0:
+            log.warning('Ribbon not ready or empty - Revit may still be loading')
+            return results
         log.info('Ribbon found, tabs: %d', ribbon.Tabs.Count)
 
         for tab in ribbon.Tabs:

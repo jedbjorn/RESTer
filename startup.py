@@ -385,35 +385,58 @@ def _make_command_handler(command_id):
 
 # --- Main startup logic ---
 
-def main():
-    log.info('=== RESTer startup hook ===')
+def _on_app_initialized(sender, args):
+    """Called after Revit has fully loaded all addins and ribbon items."""
+    try:
+        log.info('=== RESTer deferred build (ApplicationInitialized) ===')
 
-    active, profile = _load_active_profile()
-    if not active or not profile:
-        log.info('No active profile - startup complete (no tab to build)')
-        return
-
-    log.info('Active profile: %s', active.get('profile'))
-
-    # Cache check
-    profile_path = os.path.join(_profiles_dir, active.get('profile_file', ''))
-    if not _needs_rebuild(active, profile_path):
-        return
-
-    # Version check
-    revit_version = _get_revit_version()
-    min_version = profile.get('min_version')
-    if revit_version and min_version:
-        if int(revit_version) < int(min_version):
-            log.warning('Revit %s is below min_version %s - aborting',
-                        revit_version, min_version)
+        active, profile = _load_active_profile()
+        if not active or not profile:
+            log.info('No active profile - nothing to build')
             return
 
-    # Build the ribbon
-    if _build_ribbon(profile):
-        _update_last_built(active)
+        log.info('Active profile: %s', active.get('profile'))
 
-    log.info('=== RESTer startup complete ===')
+        # Cache check
+        profile_path = os.path.join(_profiles_dir, active.get('profile_file', ''))
+        if not _needs_rebuild(active, profile_path):
+            return
+
+        # Version check
+        revit_version = _get_revit_version()
+        min_version = profile.get('min_version')
+        if revit_version and min_version:
+            try:
+                if int(revit_version) < int(min_version):
+                    log.warning('Revit %s is below min_version %s - aborting',
+                                revit_version, min_version)
+                    return
+            except ValueError:
+                pass
+
+        # Build the ribbon
+        if _build_ribbon(profile):
+            _update_last_built(active)
+
+        log.info('=== RESTer deferred build complete ===')
+    except Exception as e:
+        log.error('Deferred build failed: %s', e)
+        import traceback
+        log.error(traceback.format_exc())
 
 
-main()
+# Register for ApplicationInitialized event
+log.info('=== RESTer startup hook - registering for ApplicationInitialized ===')
+try:
+    __revit__.ApplicationInitialized += _on_app_initialized  # noqa: F821
+    log.info('Registered ApplicationInitialized handler')
+except Exception as e:
+    log.warning('Could not register ApplicationInitialized: %s', e)
+    log.info('Falling back to immediate build')
+    # Fallback: try building immediately (may miss late-loading addins)
+    active, profile = _load_active_profile()
+    if active and profile:
+        profile_path = os.path.join(_profiles_dir, active.get('profile_file', ''))
+        if _needs_rebuild(active, profile_path):
+            if _build_ribbon(profile):
+                _update_last_built(active)
