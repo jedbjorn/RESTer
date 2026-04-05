@@ -748,6 +748,89 @@
   }
   .panel-slot:hover { border-color: var(--border2); color: var(--text); }
   .panel-slot.selected { border-color: var(--accent); background: rgba(79,142,247,0.05); color: var(--text); }
+
+  /* Icon picker button on slot cards */
+  .slot-icon-pick {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 20px; height: 20px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text3);
+    font-size: 10px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s, border-color 0.15s, color 0.15s;
+    z-index: 2;
+  }
+  .slot:hover .slot-icon-pick { opacity: 1; }
+  .slot-icon-pick:hover { border-color: var(--accent); color: var(--accent); background: rgba(79,142,247,0.08); }
+
+  .slot-icon-badge {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent3);
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    z-index: 3;
+    pointer-events: none;
+  }
+
+  .slot { position: relative; }
+
+  /* Open folder button */
+  .open-folder-btn {
+    width: 28px; height: 28px;
+    border-radius: 4px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text3);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .open-folder-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(79,142,247,0.08); }
+
+  /* Toast notification */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--surface);
+    border: 1px solid var(--accent3);
+    border-radius: 6px;
+    padding: 12px 18px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12.5px;
+    color: var(--text);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    z-index: 999;
+    opacity: 0;
+    transform: translateY(12px);
+    transition: opacity 0.25s, transform 0.25s;
+    max-width: 380px;
+    pointer-events: none;
+  }
+  .toast.visible { opacity: 1; transform: translateY(0); }
+  .toast .toast-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent3);
+    margin-bottom: 4px;
+  }
+  .toast .toast-body {
+    font-size: 11.5px;
+    color: var(--text2);
+    word-break: break-all;
+  }
   /* Insertion line — appears between items during drag */
   .drop-line {
     height: 2px;
@@ -1081,17 +1164,20 @@
     <label>Profile Name</label>
     <div class="profile-switcher">
       <div class="profile-dropdown-btn" id="profileBtn" onclick="toggleProfileMenu()">
-        <span class="profile-name" id="profileNameDisplay">Design_2025</span>
+        <span class="profile-name" id="profileNameDisplay">New Profile</span>
         <span class="chevron">▼</span>
       </div>
       <div class="profile-menu" id="profileMenu">
-        <div class="profile-menu-item current" onclick="switchProfile(this,'Design_2025')">Design_2025</div>
-        <div class="profile-menu-item" onclick="switchProfile(this,'Documentation_2025')">Documentation_2025</div>
-        <div class="profile-menu-item" onclick="switchProfile(this,'Site_2025')">Site_2025</div>
+        <!-- populated by populateProfileDropdown() -->
         <div class="profile-menu-divider"></div>
         <div class="profile-menu-item new-item" onclick="newProfile()">+ New</div>
       </div>
       <button class="pencil-btn" title="Rename profile" onclick="editProfileName()">✎</button>
+      <button class="open-folder-btn" title="Open profiles folder" onclick="openProfilesFolder()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        </svg>
+      </button>
     </div>
   </div>
   <div class="header-field">
@@ -1257,6 +1343,12 @@
   </div>
 </div>
 
+<!-- Toast notification -->
+<div class="toast" id="toast">
+  <div class="toast-title"></div>
+  <div class="toast-body"></div>
+</div>
+
 <script>
   // ── ADDIN LOOKUP TABLE ──────────────────────────────────────────────────────
   // Canonical map: ribbon tab name (sourceTab) → known .addin filename.
@@ -1282,54 +1374,18 @@
 
   // ── STATE ──────────────────────────────────────────────────────────────────
   const state = {
-    currentProfile: 'Design_2025',
+    currentProfile: 'New Profile',
     expandedStack:  null,   // name of the stack whose editor is open, or null
-    stacks: {
-      'Edit Stack':  { tools: ['Move','Rotate','Copy'] },
-      'Views Stack': { tools: ['Section','Camera'] },
-    },
-    panels: {
-      'Modify':   { color: '#4f8ef7', active: true, slots: [
-        { type:'tool',  name:'Align',         icon:'↔',  commandId:'ID_MODIFY_ALIGN'                                        },
-        { type:'tool',  name:'Mirror',         icon:'⊿',  commandId:'ID_MODIFY_MIRROR_PICK'                                  },
-        { type:'stack', name:'Edit Stack'                                                                                     },
-        { type:'tool',  name:'Offset',         icon:'⊙',  commandId:'ID_MODIFY_OFFSET'                                       },
-        { type:'tool',  name:'Array',          icon:'▦',  commandId:'ID_MODIFY_ARRAY'                                        },
-        { type:'tool',  name:'Sheet Manager',  icon:'⊞',  commandId:'CustomCtrl_%CustomCtrl_%DiRoots%SheetsManager%ShtMgr'  },
-        { type:'tool',  name:'One Box',        icon:'▣',  commandId:'CustomCtrl_%CustomCtrl_%DiRoots%OneBox%OneBox'          },
-      ]},
-      'View':     { color: '#10b981', active: true, slots: [
-        { type:'tool', name:'Section',        icon:'□',  commandId:'ID_VIEW_SECTION'                             },
-        { type:'tool', name:'Camera',         icon:'◎',  commandId:'ID_VIEW_CAMERA_PERSPECTIVE'                  },
-        { type:'tool', name:'Solar Analysis', icon:'☀',  commandId:'CustomCtrl_%CustomCtrl_%Naviate%Analysis%SolarAnalysis' },
-      ]},
-      'Annotate': { color: '#a78bfa', active: true, slots: [] },
-    },
+    stacks: {},
+    panels: {},
     // sourceTab: null  = native Revit command (no add-in to attribute)
     // sourceTab: string = add-in ribbon tab name, parsed from RevitCommandId at record time
     // commandId: the RevitCommandId string captured via adwindows.dll ItemExecuted at record time
     //   Native tools  → "ID_MODIFY_*" / "ID_VIEW_*" format
     //   Add-in tools  → "CustomCtrl_%CustomCtrl_%{Tab}%{Panel}%{Button}" format
-    allTools: [
-      { name:'Align',         icon:'↔',  sourceTab: null,       commandId: 'ID_MODIFY_ALIGN'                                        },
-      { name:'Mirror',        icon:'⊿',  sourceTab: null,       commandId: 'ID_MODIFY_MIRROR_PICK'                                  },
-      { name:'Trim / Extend', icon:'✂',  sourceTab: null,       commandId: 'ID_MODIFY_TRIMEXTEND_SINGLE'                            },
-      { name:'Offset',        icon:'⊙',  sourceTab: null,       commandId: 'ID_MODIFY_OFFSET'                                       },
-      { name:'Split Element', icon:'⊕',  sourceTab: null,       commandId: 'ID_MODIFY_SPLIT'                                        },
-      { name:'Move',          icon:'↖',  sourceTab: null,       commandId: 'ID_MODIFY_MOVE'                                         },
-      { name:'Rotate',        icon:'⟳',  sourceTab: null,       commandId: 'ID_MODIFY_ROTATE'                                       },
-      { name:'Copy',          icon:'⟲',  sourceTab: null,       commandId: 'ID_MODIFY_COPY'                                         },
-      { name:'Array',         icon:'▦',  sourceTab: null,       commandId: 'ID_MODIFY_ARRAY'                                        },
-      { name:'Section',       icon:'□',  sourceTab: null,       commandId: 'ID_VIEW_SECTION'                                        },
-      { name:'Detail View',   icon:'📐', sourceTab: null,       commandId: 'ID_VIEW_DETAIL'                                         },
-      { name:'Camera',        icon:'◎',  sourceTab: null,       commandId: 'ID_VIEW_CAMERA_PERSPECTIVE'                             },
-      { name:'Sheet Manager', icon:'⊞',  sourceTab: 'DiRoots',  commandId: 'CustomCtrl_%CustomCtrl_%DiRoots%SheetsManager%ShtMgr'  },
-      { name:'One Box',       icon:'▣',  sourceTab: 'DiRoots',  commandId: 'CustomCtrl_%CustomCtrl_%DiRoots%OneBox%OneBox'          },
-      { name:'Model Checker', icon:'✔',  sourceTab: 'DiRoots',  commandId: 'CustomCtrl_%CustomCtrl_%DiRoots%ModelChecker%MdlChk'   },
-      { name:'Solar Analysis',icon:'☀',  sourceTab: 'Naviate',  commandId: 'CustomCtrl_%CustomCtrl_%Naviate%Analysis%SolarAnalysis' },
-      { name:'Room Analyzer', icon:'◫',  sourceTab: 'Naviate',  commandId: 'CustomCtrl_%CustomCtrl_%Naviate%Analysis%RoomAnalyzer'  },
-    ],
-    currentPanel:   'Modify',
+    allTools: [],
+    currentPanel:   null,
+    profileList: [],       // list of profile name strings from get_profiles()
   };
 
   // ── HELPERS ────────────────────────────────────────────────────────────────
@@ -1354,6 +1410,7 @@
   function renderMockPreview() {
     const tools = document.getElementById('panelMockTools');
     tools.innerHTML = '';
+    if (!state.currentPanel || !state.panels[state.currentPanel]) return;
     state.panels[state.currentPanel].slots.forEach(slot => {
       if (slot.type === 'tool') {
         tools.insertAdjacentHTML('beforeend',
@@ -1379,8 +1436,10 @@
   function renderSlotList() {
     const list = document.getElementById('slotList');
     list.innerHTML = '';
+    if (!state.currentPanel || !state.panels[state.currentPanel]) return;
     state.panels[state.currentPanel].slots.forEach((slot, idx) => {
       if (slot.type === 'tool') {
+        const iconBadge = slot.iconFile ? '<div class="slot-icon-badge"></div>' : '';
         list.insertAdjacentHTML('beforeend',
           `<div class="slot" data-idx="${idx}"
                 draggable="true"
@@ -1391,6 +1450,12 @@
              <span class="drag-h">⠿</span>
              <div class="slot-icon">${slot.icon}</div>
              ${slot.name}
+             <button class="slot-icon-pick" title="Set custom icon" onclick="event.stopPropagation();pickIconForSlot(${idx})">
+               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+               </svg>
+             </button>
+             ${iconBadge}
            </div>`);
       } else {
         const count = state.stacks[slot.name]?.tools.length ?? 0;
@@ -1459,8 +1524,10 @@
     const list = document.getElementById('toolList');
 
     // Tools in the current panel — green checkbox, toggleable
+    const currentSlots = (state.currentPanel && state.panels[state.currentPanel])
+      ? state.panels[state.currentPanel].slots : [];
     const currentPanelNames = new Set(
-      state.panels[state.currentPanel].slots.map(s => s.name)
+      currentSlots.map(s => s.name)
     );
     // Tools placed in any OTHER panel — shown greyed, pointer-events:none
     const otherPanelNames = new Set(
@@ -1506,6 +1573,7 @@
   // ── TOGGLE TOOL IN PANEL ───────────────────────────────────────────────────
   // Called when user clicks a tool row in the Available Tools list.
   function toggleToolInPanel(name) {
+    if (!state.currentPanel || !state.panels[state.currentPanel]) return;
     const slots = state.panels[state.currentPanel].slots;
     const idx   = slots.findIndex(s => s.type === 'tool' && s.name === name);
     if (idx !== -1) {
@@ -1525,6 +1593,7 @@
   // ── TOGGLE STACK IN PANEL ──────────────────────────────────────────────────
   // Called when user clicks a stack row in the Stacks list.
   function toggleStackInPanel(name) {
+    if (!state.currentPanel || !state.panels[state.currentPanel]) return;
     const slots = state.panels[state.currentPanel].slots;
     const idx   = slots.findIndex(s => s.type === 'stack' && s.name === name);
     if (idx !== -1) {
@@ -1704,10 +1773,40 @@
   // ── RECORD ────────────────────────────────────────────────────────────────
   function toggleRecord() {
     const btn = document.getElementById('recBtn');
+    const wasRecording = btn.classList.contains('recording');
     btn.classList.toggle('recording');
-    btn.innerHTML = btn.classList.contains('recording')
-      ? '<div class="rec-dot"></div> Recording…'
-      : '<div class="rec-dot"></div> Record';
+
+    if (!wasRecording) {
+      // Starting record mode — fetch installed commands from Revit ribbon
+      btn.innerHTML = '<div class="rec-dot"></div> Loading…';
+      if (window.pywebview && window.pywebview.api) {
+        window.pywebview.api.get_installed_commands().then(cmds => {
+          if (Array.isArray(cmds) && cmds.length > 0) {
+            // Merge new commands into allTools, avoiding duplicates by commandId
+            const existingIds = new Set(state.allTools.map(t => t.commandId));
+            cmds.forEach(cmd => {
+              if (!existingIds.has(cmd.commandId)) {
+                state.allTools.push({
+                  name:      cmd.name,
+                  icon:      cmd.icon || '●',
+                  sourceTab: cmd.sourceTab || null,
+                  commandId: cmd.commandId,
+                });
+              }
+            });
+            renderToolList();
+            renderDetectedAddins();
+          }
+          btn.innerHTML = '<div class="rec-dot"></div> Recording…';
+        }).catch(() => {
+          btn.innerHTML = '<div class="rec-dot"></div> Recording…';
+        });
+      } else {
+        btn.innerHTML = '<div class="rec-dot"></div> Recording…';
+      }
+    } else {
+      btn.innerHTML = '<div class="rec-dot"></div> Record';
+    }
   }
 
   // ── PROFILE MANAGEMENT ────────────────────────────────────────────────────
@@ -1770,6 +1869,17 @@
     });
   }
 
+  // ── TOAST ──────────────────────────────────────────────────────────────────
+  function showToast(title, body, duration) {
+    duration = duration || 4000;
+    const el = document.getElementById('toast');
+    el.querySelector('.toast-title').textContent = title;
+    el.querySelector('.toast-body').textContent = body;
+    el.classList.add('visible');
+    clearTimeout(el._timer);
+    el._timer = setTimeout(() => el.classList.remove('visible'), duration);
+  }
+
   // ── EXPORT ────────────────────────────────────────────────────────────────
   function exportConfig() {
     const tabName    = document.getElementById('tabNameInput').value || 'New Tab';
@@ -1807,7 +1917,7 @@
       requiredAddins: getDetectedAddins(),
       hideRules:      [],       // suppression handled by the loader, not TabCreator
       stacks:         stackDefs,
-      // Slots carry { type, name, icon, commandId } — fully self-contained,
+      // Slots carry { type, name, icon, commandId, iconFile } — fully self-contained,
       // runtime never needs to re-resolve commandId from a separate registry
       // Only export active panels (checked in the sidebar)
       panels:         Object.entries(state.panels)
@@ -1815,12 +1925,29 @@
         .map(([name, p]) => ({
         name,
         color: p.color,
-        slots: p.slots,
+        slots: p.slots.map(slot => {
+          const out = { ...slot };
+          // Include iconFile if set on the slot
+          if (slot.iconFile) out.iconFile = slot.iconFile;
+          return out;
+        }),
       })),
     };
-    const blob = new Blob([JSON.stringify(config, null, 2)], { type:'application/json' });
-    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `${state.currentProfile}_${date}.json` });
-    a.click(); URL.revokeObjectURL(a.href);
+
+    // Use pywebview API if available, otherwise fall back to browser download
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.save_export) {
+      window.pywebview.api.save_export(JSON.stringify(config, null, 2)).then(result => {
+        if (result && result.path) {
+          showToast('Exported', result.desktop_path || result.path);
+        }
+      }).catch(err => {
+        showToast('Export failed', String(err));
+      });
+    } else {
+      const blob = new Blob([JSON.stringify(config, null, 2)], { type:'application/json' });
+      const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `${state.currentProfile}_${date}.json` });
+      a.click(); URL.revokeObjectURL(a.href);
+    }
   }
 
   // ── EXPORT GATING ─────────────────────────────────────────────────────────
@@ -1952,9 +2079,10 @@
   // ── STACK LIST ────────────────────────────────────────────────────────────
   function renderStackList() {
     const list = document.getElementById('stackList');
+    const currentSlots = (state.currentPanel && state.panels[state.currentPanel])
+      ? state.panels[state.currentPanel].slots : [];
     const placedStacks = new Set(
-      state.panels[state.currentPanel].slots
-        .filter(s => s.type === 'stack').map(s => s.name)
+      currentSlots.filter(s => s.type === 'stack').map(s => s.name)
     );
 
     list.innerHTML = Object.entries(state.stacks).map(([name, stack]) => {
@@ -2194,20 +2322,236 @@
     }
   }
 
+  // ── ICON PICKER ─────────────────────────────────────────────────────────
+  function pickIconForSlot(slotIdx) {
+    if (!state.currentPanel || !state.panels[state.currentPanel]) return;
+    const slot = state.panels[state.currentPanel].slots[slotIdx];
+    if (!slot || slot.type !== 'tool') return;
+
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.pick_icon) {
+      window.pywebview.api.pick_icon(slot.name).then(result => {
+        if (result && result.filename) {
+          slot.iconFile = result.filename;
+          renderSlotList();
+          showToast('Icon set', slot.name + ' → ' + result.filename);
+        }
+      }).catch(() => {});
+    }
+  }
+
+  // ── OPEN PROFILES FOLDER ─────────────────────────────────────────────────
+  function openProfilesFolder() {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.open_profiles_folder) {
+      window.pywebview.api.open_profiles_folder();
+    }
+  }
+
+  // ── PROFILE DROPDOWN ─────────────────────────────────────────────────────
+  function populateProfileDropdown(profileNames) {
+    state.profileList = profileNames || [];
+    const menu    = document.getElementById('profileMenu');
+    const divider = menu.querySelector('.profile-menu-divider');
+    // Remove all existing profile items (but keep divider and "+ New" item)
+    menu.querySelectorAll('.profile-menu-item:not(.new-item)').forEach(el => el.remove());
+    // Insert "New Profile" default option at top
+    const newOpt = document.createElement('div');
+    newOpt.className = 'profile-menu-item' + (state.currentProfile === 'New Profile' ? ' current' : '');
+    newOpt.textContent = 'New Profile';
+    newOpt.addEventListener('click', () => {
+      loadNewProfile();
+      closeProfileMenu();
+    });
+    menu.insertBefore(newOpt, divider);
+    // Insert each fetched profile
+    state.profileList.forEach(name => {
+      const item = document.createElement('div');
+      item.className = 'profile-menu-item' + (state.currentProfile === name ? ' current' : '');
+      item.textContent = name;
+      item.addEventListener('click', () => {
+        loadExistingProfile(name);
+        closeProfileMenu();
+      });
+      menu.insertBefore(item, divider);
+    });
+  }
+
+  function loadNewProfile() {
+    state.currentProfile = 'New Profile';
+    document.getElementById('profileNameDisplay').textContent = 'New Profile';
+    state.stacks = {};
+    state.panels = {};
+    state.allTools = [];
+    state.currentPanel = null;
+    state.expandedStack = null;
+    document.getElementById('tabNameInput').value = '';
+    document.getElementById('tabNameDisplay').textContent = 'New Tab';
+    document.getElementById('panelNameInput').value = '';
+    document.getElementById('mockTitle').textContent = '';
+    renderAll();
+  }
+
+  function loadExistingProfile(name) {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.load_profile_into_editor) {
+      window.pywebview.api.load_profile_into_editor(name).then(profile => {
+        if (!profile) return;
+        applyProfileToEditor(profile);
+      }).catch(err => {
+        showToast('Load failed', String(err));
+      });
+    }
+  }
+
+  function applyProfileToEditor(profile) {
+    // Set profile name
+    state.currentProfile = profile.profile || 'Loaded Profile';
+    document.getElementById('profileNameDisplay').textContent = state.currentProfile;
+
+    // Set tab name
+    document.getElementById('tabNameInput').value = profile.tab || '';
+    document.getElementById('tabNameDisplay').textContent = profile.tab || 'New Tab';
+
+    // Rebuild stacks
+    state.stacks = {};
+    if (profile.stacks) {
+      Object.entries(profile.stacks).forEach(([name, stackDef]) => {
+        state.stacks[name] = { tools: (stackDef.tools || []).map(t => t.name || t) };
+      });
+    }
+
+    // Rebuild panels
+    state.panels = {};
+    state.currentPanel = null;
+    if (profile.panels && Array.isArray(profile.panels)) {
+      profile.panels.forEach(p => {
+        state.panels[p.name] = {
+          color: p.color || '#4f8ef7',
+          active: true,
+          slots: (p.slots || []).map(slot => {
+            const s = { type: slot.type, name: slot.name };
+            if (slot.type === 'tool') {
+              s.icon = slot.icon || '●';
+              s.commandId = slot.commandId || '';
+              if (slot.iconFile) s.iconFile = slot.iconFile;
+            }
+            return s;
+          }),
+        };
+      });
+      // Select first panel
+      const firstPanel = Object.keys(state.panels)[0];
+      if (firstPanel) {
+        state.currentPanel = firstPanel;
+        document.getElementById('panelNameInput').value = firstPanel;
+        document.getElementById('mockTitle').textContent = firstPanel;
+        applyColorToMock(state.panels[firstPanel].color);
+      }
+    }
+
+    // Rebuild allTools from panel slots (collect unique tools)
+    const seen = new Set();
+    state.allTools = [];
+    // Gather from panel slots
+    Object.values(state.panels).forEach(panel => {
+      panel.slots.forEach(slot => {
+        if (slot.type === 'tool' && !seen.has(slot.commandId)) {
+          seen.add(slot.commandId);
+          const tool = state.allTools.find(t => t.name === slot.name);
+          if (!tool) {
+            // Derive sourceTab from commandId pattern
+            let sourceTab = null;
+            const m = slot.commandId && slot.commandId.match(/^CustomCtrl_%CustomCtrl_%([^%]+)%/);
+            if (m) sourceTab = m[1];
+            state.allTools.push({
+              name: slot.name,
+              icon: slot.icon || '●',
+              sourceTab: sourceTab,
+              commandId: slot.commandId,
+            });
+          }
+        }
+      });
+    });
+    // Gather from stacks
+    Object.values(state.stacks).forEach(stack => {
+      stack.tools.forEach(toolName => {
+        if (!state.allTools.find(t => t.name === toolName)) {
+          // Try to find commandId from stack defs in the profile
+          let cmdId = null;
+          if (profile.stacks) {
+            Object.values(profile.stacks).forEach(sd => {
+              const found = (sd.tools || []).find(t => (t.name || t) === toolName);
+              if (found && found.commandId) cmdId = found.commandId;
+            });
+          }
+          let sourceTab = null;
+          if (cmdId) {
+            const m = cmdId.match(/^CustomCtrl_%CustomCtrl_%([^%]+)%/);
+            if (m) sourceTab = m[1];
+          }
+          state.allTools.push({
+            name: toolName,
+            icon: '●',
+            sourceTab: sourceTab,
+            commandId: cmdId,
+          });
+        }
+      });
+    });
+
+    state.expandedStack = null;
+
+    // Update profile dropdown highlight
+    document.querySelectorAll('#profileMenu .profile-menu-item').forEach(el => {
+      el.classList.toggle('current', el.textContent === state.currentProfile);
+    });
+
+    renderAll();
+  }
+
+  function renderAll() {
+    renderPanelList();
+    renderStackList();
+    renderTabCanvas();
+    renderPanelSlotList();
+    renderDetectedAddins();
+    renderToolList();
+    renderSlotList();
+    renderMockPreview();
+    checkExportReady();
+  }
+
+  // ── PYWEBVIEW READY ──────────────────────────────────────────────────────
+  window.addEventListener('pywebviewready', async function() {
+    try {
+      // Fetch Revit version
+      if (window.pywebview.api.get_revit_version) {
+        const ver = await window.pywebview.api.get_revit_version();
+        if (ver) {
+          document.getElementById('rvtVersionDisplay').textContent = 'Revit ' + ver;
+        }
+      }
+    } catch(e) { /* ignore */ }
+
+    try {
+      // Fetch profile list
+      if (window.pywebview.api.get_profiles) {
+        const profiles = await window.pywebview.api.get_profiles();
+        if (Array.isArray(profiles)) {
+          populateProfileDropdown(profiles);
+        }
+      }
+    } catch(e) { /* ignore */ }
+  });
+
   // ── INIT ──────────────────────────────────────────────────────────────────
   // Wire hex action buttons
   document.querySelector('.hex-apply').addEventListener('click', applyHex);
   document.querySelector('.hex-save').addEventListener('click', saveHexFavorite);
 
-  renderPanelList();
-  renderStackList();
-  renderTabCanvas();
-  renderPanelSlotList();
-  renderDetectedAddins();
-  renderToolList();
-  renderSlotList();
-  renderMockPreview();
-  checkExportReady();
+  renderAll();
+
+  // Initialize profile dropdown with empty state (pywebviewready will populate)
+  populateProfileDropdown([]);
 
 </script>
 </body>

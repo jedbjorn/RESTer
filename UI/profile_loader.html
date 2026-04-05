@@ -663,12 +663,11 @@
     <label>Revit Install</label>
     <div class="revit-dropdown">
       <div class="revit-dropdown-btn" id="revitBtn" onclick="toggleRevitMenu()">
-        <span id="revitSelected">Revit 2024</span>
+        <span id="revitSelected">—</span>
         <span class="chevron">▼</span>
       </div>
       <div class="revit-menu" id="revitMenu">
-        <div class="revit-menu-item current" onclick="selectRevit(this,'Revit 2024')">Revit 2024</div>
-        <div class="revit-menu-item" onclick="selectRevit(this,'Revit 2025')">Revit 2025</div>
+        <!-- Populated by get_revit_versions() -->
       </div>
     </div>
   </div>
@@ -789,104 +788,13 @@
   //   hideRules      — ribbon tab names to suppress at load time (.addin → .addin.inactive)
   //   stacks         — dict: stackName → { tools: [{name, commandId}] }
   //   panels         — array: { name, color, slots: [{type, name, icon?, commandId?}] }
-  const profiles = [
-    {
-      profile:        'Design_2025',
-      tab:            'Design',
-      min_version:    '2024',
-      exportDate:     '2024-03-12',
-      requiredAddins: ['DiRoots', 'Naviate'],
-      hideRules:      ['Naviate'],
-      stacks: {
-        'Edit Stack': {
-          tools: [
-            { name: 'Move',   commandId: 'ID_MODIFY_MOVE'   },
-            { name: 'Rotate', commandId: 'ID_MODIFY_ROTATE' },
-            { name: 'Copy',   commandId: 'ID_MODIFY_COPY'   },
-          ],
-        },
-      },
-      panels: [
-        { name: 'Modify', color: '#4f8ef7', slots: [
-          { type: 'tool',  name: 'Align',         icon: '↔', commandId: 'ID_MODIFY_ALIGN'                                       },
-          { type: 'tool',  name: 'Mirror',         icon: '⊿', commandId: 'ID_MODIFY_MIRROR_PICK'                                 },
-          { type: 'stack', name: 'Edit Stack'                                                                                     },
-          { type: 'tool',  name: 'Sheet Manager',  icon: '⊞', commandId: 'CustomCtrl_%CustomCtrl_%DiRoots%SheetsManager%ShtMgr' },
-        ]},
-        { name: 'View', color: '#10b981', slots: [
-          { type: 'tool', name: 'Section',        icon: '□', commandId: 'ID_VIEW_SECTION'                                        },
-          { type: 'tool', name: 'Camera',         icon: '◎', commandId: 'ID_VIEW_CAMERA_PERSPECTIVE'                             },
-          { type: 'tool', name: 'Solar Analysis', icon: '☀', commandId: 'CustomCtrl_%CustomCtrl_%Naviate%Analysis%SolarAnalysis' },
-        ]},
-        { name: 'Annotate', color: '#a78bfa', slots: [
-          { type: 'tool', name: 'Detail View', icon: '📐', commandId: 'ID_VIEW_DETAIL'   },
-          { type: 'tool', name: 'Tag All',     icon: '⊹',  commandId: 'ID_ANNOTATE_ALL'  },
-        ]},
-      ],
-    },
-    {
-      profile:        'Documentation_2025',
-      tab:            'Documentation',
-      min_version:    '2024',
-      exportDate:     '2024-02-28',
-      requiredAddins: [],
-      hideRules:      [],
-      stacks:         {},
-      panels: [
-        { name: 'Sheets', color: '#4f8ef7', slots: [
-          { type: 'tool', name: 'New Sheet',     icon: '⬜', commandId: 'ID_DRAFTINGVIEW_SHEET'    },
-          { type: 'tool', name: 'Title Block',   icon: '⊟', commandId: 'ID_INSERT_TITLEBLOCK'      },
-          { type: 'tool', name: 'Revision',      icon: '↺', commandId: 'ID_ANNOTATE_REVISION'      },
-          { type: 'tool', name: 'Legend',        icon: '≡',  commandId: 'ID_VIEW_LEGEND'            },
-        ]},
-        { name: 'Detail', color: '#10b981', slots: [
-          { type: 'tool', name: 'Detail Line',   icon: '╱', commandId: 'ID_DETAILCURVE_LINE'       },
-          { type: 'tool', name: 'Filled Region', icon: '▪', commandId: 'ID_DETAIL_FILLEDREGION'    },
-          { type: 'tool', name: 'Masking Region',icon: '◻', commandId: 'ID_DETAIL_MASKINGREGION'   },
-        ]},
-        { name: 'Annotate', color: '#a78bfa', slots: [
-          { type: 'tool', name: 'Text',          icon: 'T', commandId: 'ID_ANNOTATE_TEXT'           },
-          { type: 'tool', name: 'Dimension',     icon: '⟷', commandId: 'ID_ANNOTATE_DIMENSION'     },
-          { type: 'tool', name: 'Tag',           icon: '⊹', commandId: 'ID_ANNOTATE_TAG'            },
-        ]},
-      ],
-    },
-    {
-      profile:        'Coordination_2025',
-      tab:            'Coordination',
-      min_version:    '2025',
-      exportDate:     '2025-01-10',
-      requiredAddins: ['DiRoots'],
-      hideRules:      [],
-      stacks: {
-        'Link Stack': {
-          tools: [
-            { name: 'Link Revit',   commandId: 'ID_LINK_REVIT'   },
-            { name: 'Manage Links', commandId: 'ID_MANAGE_LINKS' },
-          ],
-        },
-      },
-      panels: [
-        { name: 'Coordination', color: '#4f8ef7', slots: [
-          { type: 'stack', name: 'Link Stack'                                                                                    },
-          { type: 'tool',  name: 'Copy/Monitor', icon: '⊛', commandId: 'ID_COLLABORATE_COPY_MONITOR'                           },
-          { type: 'tool',  name: 'Model Checker',icon: '✔', commandId: 'CustomCtrl_%CustomCtrl_%DiRoots%ModelChecker%MdlChk'   },
-        ]},
-        { name: 'Worksets', color: '#10b981', slots: [
-          { type: 'tool', name: 'Worksets', icon: '⊚', commandId: 'ID_WORKSET'                                                 },
-          { type: 'tool', name: 'Sync',     icon: '⟳', commandId: 'ID_COLLABORATE_SYNCHRONIZE_AND_MODIFY'                     },
-        ]},
-        { name: 'Clash', color: '#ef4444', slots: [
-          { type: 'tool', name: 'Interference', icon: '⊗', commandId: 'ID_ANALYZE_INTERFERENCE_CHECK' },
-        ]},
-      ],
-    },
-  ];
+  const profiles = [];
 
   // ── STATE ─────────────────────────────────────────────────────────────────────
-  let activeProfileName = 'Design_2025';
+  let activeProfileName = null;
   let revitRunning      = false;
   let selectedProfile   = null;
+  let currentRevitVersion = null;
 
   // ── HELPERS ───────────────────────────────────────────────────────────────────
   function hexToRgb(hex) {
@@ -1032,18 +940,19 @@
     }
   }
 
-  // ── REVIT STATUS TOGGLE ───────────────────────────────────────────────────────
-  document.getElementById('revitStatus').addEventListener('click', function() {
-    revitRunning = !revitRunning;
+  // ── REVIT STATUS DISPLAY ──────────────────────────────────────────────────────
+  function setRevitStatus(running) {
+    revitRunning = running;
+    const el = document.getElementById('revitStatus');
     if (revitRunning) {
-      this.className = 'revit-status running';
-      this.innerHTML = '<div class="status-dot pulse"></div> Revit Running';
+      el.className = 'revit-status running';
+      el.innerHTML = '<div class="status-dot pulse"></div> Revit Running';
     } else {
-      this.className = 'revit-status closed';
-      this.innerHTML = '<div class="status-dot"></div> Revit Closed';
+      el.className = 'revit-status closed';
+      el.innerHTML = '<div class="status-dot"></div> Revit Closed';
     }
     updateFooter();
-  });
+  }
 
   // ── REVIT VERSION DROPDOWN ────────────────────────────────────────────────────
   function toggleRevitMenu() {
@@ -1054,6 +963,7 @@
     document.querySelectorAll('.revit-menu-item').forEach(i => i.classList.remove('current'));
     el.classList.add('current');
     document.getElementById('revitSelected').textContent = name;
+    currentRevitVersion = name;
     document.getElementById('revitBtn').classList.remove('open');
     document.getElementById('revitMenu').classList.remove('open');
   }
@@ -1073,33 +983,41 @@
   //   5. Profile is immediately added to profiles[] and rendered in the list
   //   6. On every subsequent launch, ProfileSelector reads all .json files from that dir
   function addProfile() {
-    alert('File picker → user selects a .json profile file shared by admin.\n\nRESTer will:\n  1. Validate the schema\n  2. Copy it to the RESTer profiles directory\n  3. Add it to the profile list immediately\n\nThe profile persists across sessions and is available every launch.');
+    window.pywebview.api.add_profile().then(function(result) {
+      if (result) {
+        profiles.push(result);
+        renderCards();
+      }
+    }).catch(function(err) {
+      // User cancelled or error — do nothing
+    });
   }
 
   // ── LOAD PROFILE ──────────────────────────────────────────────────────────────
   function loadProfile() {
     if (revitRunning || !selectedProfile) return;
     const disableNonRequired = document.getElementById('disableAddinsCheck').checked;
-    activeProfileName = selectedProfile.profile;
-    renderCards();
-    const idx  = profiles.findIndex(p => p.profile === activeProfileName);
-    const cards = document.querySelectorAll('.profile-card');
-    if (cards[idx]) selectCard(cards[idx], idx);
 
-    const suppressedMsg = selectedProfile.hideRules?.length
-      ? `Suppressed tabs: ${selectedProfile.hideRules.join(', ')}\n`
-      : '';
-    const disableMsg = disableNonRequired
-      ? 'Non-required add-ins will be disabled (.addin → .addin.inactive).\n'
-      : '';
-
-    alert(`Profile loaded: ${activeProfileName}\n\n${disableMsg}${suppressedMsg}\nOpen Revit — tab "${selectedProfile.tab}" will build automatically.`);
+    window.pywebview.api.load_profile(selectedProfile.profile, disableNonRequired).then(function(result) {
+      activeProfileName = selectedProfile.profile;
+      renderCards();
+      const idx  = profiles.findIndex(p => p.profile === activeProfileName);
+      const cards = document.querySelectorAll('.profile-card');
+      if (cards[idx]) selectCard(cards[idx], idx);
+    }).catch(function(err) {
+      alert('Error loading profile: ' + (err.message || err));
+    });
   }
 
   // ── RESTORE ADD-INS ───────────────────────────────────────────────────────────
   function restoreAllAddins() {
     if (revitRunning) { alert('Close Revit before restoring add-ins.'); return; }
-    alert('All .addin.inactive files renamed back to .addin.\nOpen Revit normally — all add-ins restored.');
+
+    window.pywebview.api.restore_addins(currentRevitVersion).then(function(result) {
+      alert('All add-ins restored successfully.');
+    }).catch(function(err) {
+      alert('Error restoring add-ins: ' + (err.message || err));
+    });
   }
 
   // ── REMOVE PROFILE ────────────────────────────────────────────────────────────
@@ -1107,21 +1025,73 @@
     if (!selectedProfile) return;
     const name = selectedProfile.profile;
     if (confirm(`Remove "${name}" from your profile library?\n\nThis deletes the local copy from the profiles directory. The original file shared by the admin is not affected.`)) {
-      const idx = profiles.findIndex(p => p.profile === name);
-      if (idx !== -1) profiles.splice(idx, 1);
-      if (activeProfileName === name) activeProfileName = null;
-      selectedProfile = null;
-      renderCards();
-      const firstCard = document.querySelector('.profile-card');
-      if (firstCard) firstCard.click();
+      window.pywebview.api.remove_profile(name).then(function(result) {
+        const idx = profiles.findIndex(p => p.profile === name);
+        if (idx !== -1) profiles.splice(idx, 1);
+        if (activeProfileName === name) activeProfileName = null;
+        selectedProfile = null;
+        renderCards();
+        const firstCard = document.querySelector('.profile-card');
+        if (firstCard) firstCard.click();
+      }).catch(function(err) {
+        alert('Error removing profile: ' + (err.message || err));
+      });
     }
   }
 
   // ── INIT ──────────────────────────────────────────────────────────────────────
-  renderCards();
-  const initIdx  = profiles.findIndex(p => p.profile === 'Documentation_2025');
-  const initCard = document.querySelectorAll('.profile-card')[initIdx];
-  if (initCard) selectCard(initCard, initIdx);
+  function populateRevitVersions(versions) {
+    const menu = document.getElementById('revitMenu');
+    menu.innerHTML = '';
+    versions.forEach(function(ver, i) {
+      const item = document.createElement('div');
+      item.className = 'revit-menu-item' + (i === 0 ? ' current' : '');
+      item.textContent = ver;
+      item.addEventListener('click', function() { selectRevit(item, ver); });
+      menu.appendChild(item);
+    });
+    if (versions.length > 0) {
+      currentRevitVersion = versions[0];
+      document.getElementById('revitSelected').textContent = versions[0];
+    }
+  }
+
+  window.addEventListener('pywebviewready', function() {
+    // Fetch profiles
+    window.pywebview.api.get_profiles().then(function(data) {
+      data.forEach(function(p) { profiles.push(p); });
+      renderCards();
+
+      // Highlight the active profile after cards are rendered
+      window.pywebview.api.get_active_profile().then(function(name) {
+        if (name) {
+          activeProfileName = name;
+          renderCards();
+          const idx = profiles.findIndex(function(p) { return p.profile === name; });
+          const cards = document.querySelectorAll('.profile-card');
+          if (idx !== -1 && cards[idx]) selectCard(cards[idx], idx);
+        }
+      });
+    });
+
+    // Fetch Revit versions
+    window.pywebview.api.get_revit_versions().then(function(versions) {
+      if (versions && versions.length > 0) {
+        populateRevitVersions(versions);
+      }
+    });
+
+    // Check if Revit is running (once)
+    window.pywebview.api.is_revit_running().then(function(running) {
+      setRevitStatus(running);
+      if (running) {
+        document.getElementById('blockedNotice').style.display = 'flex';
+        document.getElementById('blockedNotice').innerHTML =
+          '<div class="b-dot"></div> Close Revit before loading a profile';
+        document.getElementById('loadBtn').classList.add('blocked');
+      }
+    });
+  });
 </script>
 </body>
 </html>

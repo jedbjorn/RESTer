@@ -8,6 +8,15 @@ The two HTML UIs are complete and verified. This document specifies everything C
 
 ---
 
+## Platform & Install
+
+- **Windows only.**
+- Installs to `%APPDATA%\pyRevit\Extensions\RESTer\`
+- pyRevit provides the Python runtime and includes pywebview.
+- **pyRevit is a protected add-in.** The backend must never disable, hide, or rename `pyRevit.addin` — RESTer is built on pyRevit and cannot run without it. All functions that suppress `.addin` files (`apply_hide_rules`, `disable_non_required_addins`, `restore_all_addins`) must skip `pyRevit.addin`.
+
+---
+
 ## System Architecture
 
 ```
@@ -27,39 +36,63 @@ REVIT STARTUP
 PyRevit startup hook
   └─ reads active_profile.json
   └─ reads the referenced profile .json
+  └─ cache check: skip rebuild if profile unchanged
   └─ builds custom ribbon tab + panels + buttons
   └─ applies hideRules (suppresses add-in tabs)
 ```
 
 ---
 
+## Workflows
+
+**Admin creates & distributes a profile:**
+1. Admin opens TabCreator inside Revit → builds panels, tools, stacks
+2. Admin clicks "Export Config →" → profile saved to `app/profiles/` **and** a copy to Desktop
+3. Admin sends the Desktop copy to end users (email, Teams, etc.)
+
+**Admin edits an existing profile:**
+1. Admin picks a profile from the dropdown in TabCreator → `load_profile_into_editor()` populates the editor
+2. Admin makes changes, re-exports → overwrites in `app/profiles/`, fresh copy to Desktop
+
+**End user loads a profile:**
+1. User launches ProfileSelector (via `.bat` / `.exe`)
+2. User clicks "Add Profile" → file picker → selects the JSON received from admin
+3. Profile is validated and copied to `app/profiles/` (now in the dropdown)
+4. User selects profile, picks Revit version from dropdown, clicks "Load Profile →"
+5. If Revit is running → **blocked** with error: close Revit first
+6. Profile is set as active, hideRules applied, `.addin` files toggled
+
+---
+
 ## Repository / File Structure
 
 ```
-rester/
-├── extension/
-│   └── RESTer.extension/
-│       ├── extension.json              # PyRevit extension manifest
-│       ├── startup.py                  # Runs on every Revit launch — builds tab
-│       └── RESTer.tab/
-│           └── Admin.panel/
-│               └── TabCreator.pushbutton/
-│                   ├── script.py       # Opens TabCreator HTML in pywebview
-│                   └── icon.png
+RESTer/                                     # Copy this folder into %APPDATA%\pyRevit\Extensions\
+├── extension.json                          # PyRevit extension manifest
+├── startup.py                              # Runs on every Revit launch — builds tab
+├── launch_profile_loader.bat               # Double-click to open ProfileSelector outside Revit
+├── RESTer.tab/
+│   └── Admin.panel/
+│       └── TabCreator.pushbutton/
+│           ├── script.py                   # Opens profile_manager.html in pywebview
+│           └── icon.png
 │
 ├── app/
-│   ├── profile_selector.py             # Standalone launcher for ProfileSelector UI
-│   ├── profiles/                       # User's added profile .json files live here
+│   ├── profile_selector.py                 # Standalone launcher for ProfileSelector UI
+│   ├── profiles/                           # User's added profile .json files live here
 │   │   └── (*.json)
-│   ├── active_profile.json             # Written by ProfileSelector on "Load Profile"
-│   └── addin_scanner.py               # .addin presence check + fuzzy fallback
+│   ├── active_profile.json                 # Written by ProfileSelector on "Load Profile"
+│   └── addin_scanner.py                    # .addin presence check + fuzzy fallback
+│
+├── icons/                                  # Custom tool icons (user-supplied PNGs)
+│   └── (*.png)
 │
 ├── ui/
-│   ├── TabCreator.html                 # ✅ COMPLETE — do not modify
-│   └── ProfileSelector.html           # ✅ COMPLETE — do not modify
+│   ├── profile_manager.html                     # ✅ COMPLETE — do not modify (TabCreator UI)
+│   └── profile_loader.html                 # ✅ COMPLETE — do not modify (ProfileSelector UI)
 │
 └── lookup/
-    └── addin_lookup.json               # Canonical ADDIN_LOOKUP as JSON (see below)
+    └── addin_lookup.json                   # Canonical ADDIN_LOOKUP as JSON (see below)
 ```
 
 ---
@@ -91,7 +124,7 @@ This is the exact shape TabCreator exports and ProfileSelector / PyRevit consume
       "color": "#4f8ef7",
       "slots": [
         { "type": "tool",  "name": "Align",        "icon": "↔", "commandId": "ID_MODIFY_ALIGN"         },
-        { "type": "tool",  "name": "Mirror",        "icon": "⊿", "commandId": "ID_MODIFY_MIRROR_PICK"   },
+        { "type": "tool",  "name": "Mirror",        "icon": "⊿", "commandId": "ID_MODIFY_MIRROR_PICK", "iconFile": "Mirror.png" },
         { "type": "stack", "name": "Edit Stack"                                                          },
         { "type": "tool",  "name": "Sheet Manager", "icon": "⊞", "commandId": "CustomCtrl_%CustomCtrl_%DiRoots%SheetsManager%ShtMgr" }
       ]
@@ -112,13 +145,14 @@ This is the exact shape TabCreator exports and ProfileSelector / PyRevit consume
 | `stacks` | object | Dict keyed by stack name. Only stacks actually placed in a panel slot are exported |
 | `panels[].slots[].type` | `"tool"` \| `"stack"` | Tool slots are self-contained. Stack slots reference `stacks` dict by name |
 | `panels[].slots[].commandId` | string | Only present on `type:"tool"` slots. Two formats: `ID_*` (native) or `CustomCtrl_%CustomCtrl_%{Tab}%{Panel}%{Button}` (add-in) |
-| `panels[].slots[].icon` | string | Unicode character. Not present on stack slots |
+| `panels[].slots[].icon` | string | Unicode character used as fallback display. Not present on stack slots |
+| `panels[].slots[].iconFile` | string \| null | Optional. PNG filename in `icons/` dir. When present, `startup.py` uses this for the ribbon button icon instead of the generic default |
 
 ---
 
 ## ADDIN_LOOKUP (canonical)
 
-This table must be kept in sync across: `TabCreator.html`, `ProfileSelector.html`, and `lookup/addin_lookup.json`. Claude Code should read from the JSON file at runtime rather than hardcoding in Python.
+This table must be kept in sync across: `profile_manager.html`, `profile_loader.html`, and `lookup/addin_lookup.json`. Claude Code should read from the JSON file at runtime rather than hardcoding in Python.
 
 ```json
 {
@@ -150,12 +184,14 @@ Runs automatically on every Revit launch via PyRevit's startup mechanism.
 **Responsibilities:**
 1. Read `app/active_profile.json` — if missing or empty, do nothing (no custom tab)
 2. Load the referenced profile `.json` from `app/profiles/`
-3. Validate `min_version` against current Revit version — abort and show warning balloon if version too low
-4. Build a PyRevit ribbon tab using the profile's `tab` name
-5. For each panel in `panels[]`: create ribbon panel, iterate slots, create buttons
-6. For `type:"tool"` slots: create a `PushButton` mapped to `commandId`
-7. For `type:"stack"` slots: look up in `stacks` dict, create a `PulldownButton` or `SplitButton` with the stack's tools as children
-8. Apply `hideRules` after tab is built (see addin suppression spec below)
+3. **Cache check:** compare the profile file's modified timestamp against a stored `last_built` timestamp in `app/active_profile.json`. If unchanged, skip rebuild and use existing tab. If changed, continue to step 4
+4. Validate `min_version` against current Revit version — abort and show warning balloon if version too low
+5. Build a PyRevit ribbon tab using the profile's `tab` name
+6. For each panel in `panels[]`: create ribbon panel, iterate slots, create buttons
+7. For `type:"tool"` slots: create a `PushButton` mapped to `commandId`. If `iconFile` is set, load the PNG from `icons/`; otherwise use the generic default icon shipped with the extension
+8. For `type:"stack"` slots: look up in `stacks` dict, create a `PulldownButton` or `SplitButton` with the stack's tools as children (same icon logic per child tool)
+9. Apply `hideRules` after tab is built (see addin suppression spec below)
+10. Write updated `last_built` timestamp to `app/active_profile.json`
 
 **Ribbon button creation — commandId execution:**
 
@@ -185,6 +221,7 @@ where `COMMAND_ID` is stored in the button's extra data / metadata at build time
   "profile": "Design_2025",
   "profile_file": "Design_2025_2024-03-12.json",
   "loaded_at": "2025-04-01T09:30:00",
+  "last_built": "2025-04-01T09:30:00",
   "disable_non_required": false
 }
 ```
@@ -193,13 +230,13 @@ where `COMMAND_ID` is stored in the button's extra data / metadata at build time
 
 ### 2. `script.py` — TabCreator PyRevit button
 
-Opens TabCreator.html in a pywebview window inside Revit.
+Opens profile_manager.html in a pywebview window inside Revit.
 
 ```python
 import pywebview
 import os
 
-HTML_PATH = os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'ui', 'TabCreator.html')
+HTML_PATH = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'ui', 'profile_manager.html')
 
 def IExternalCommand_Execute(commandData, message, elements):
     window = pywebview.create_window(
@@ -218,9 +255,12 @@ def IExternalCommand_Execute(commandData, message, elements):
 
 | Method | Called when | Returns |
 |---|---|---|
-| `get_revit_version()` | window loads | `"2024"` — populates the "detected Revit 2024" indicator |
+| `get_revit_version()` | window loads | Reads the active Revit version from the running instance, e.g. `"2024"` — populates the "detected Revit 2024" indicator |
 | `get_installed_commands()` | Record mode starts | list of `{name, commandId, sourceTab, icon}` dicts captured from Revit's ribbon |
-| `save_export(json_str)` | user clicks "Export Config →" | saves file to disk, returns `{path: "..."}` |
+| `save_export(json_str)` | user clicks "Export Config →" | Saves profile JSON to `app/profiles/` AND copies to user's Desktop for easy transmission. Returns `{path: "...", desktop_path: "..."}` |
+| `pick_icon(tool_name)` | user hovers a tool card and clicks the icon picker | Opens file dialog filtered to `*.png`. Copies selected file to `icons/` renamed as `{toolName}.png` (appends `(1)`, `(2)` etc. if name collides with existing icon), returns `{filename: "Move.png"}` or `null` if cancelled |
+| `load_profile_into_editor(profile_name)` | user picks a profile from dropdown | Reads profile JSON from `app/profiles/`, returns full profile object to populate the editor state |
+| `open_profiles_folder()` | user clicks "Open Profiles Folder" | Opens `app/profiles/` in Windows Explorer |
 
 **Record mode implementation** (`get_installed_commands`):
 
@@ -254,13 +294,22 @@ This populates TabCreator's `allTools` list at runtime instead of using the hard
 
 ### 3. `profile_selector.py` — standalone launcher
 
-Runs outside Revit. Opens ProfileSelector.html in a pywebview window.
+Runs outside Revit. Opens profile_loader.html in a pywebview window.
+
+**`launch_profile_loader.bat`** (at extension root — user double-clicks to launch):
+```bat
+@echo off
+pip install pywebview >nul 2>&1
+python "%~dp0app\profile_selector.py"
+```
+
+> **Future:** Replace `.bat` with a compiled `RESTer_ProfileLoader.exe` via PyInstaller (`--onefile --noconsole`) for release packaging. Python code is identical — packaging step only.
 
 ```python
 import pywebview
 import os
 
-HTML_PATH = os.path.join(os.path.dirname(__file__), '..', 'ui', 'ProfileSelector.html')
+HTML_PATH = os.path.join(os.path.dirname(__file__), '..', 'ui', 'profile_loader.html')
 
 window = pywebview.create_window(
     'Profile Selector',
@@ -278,9 +327,9 @@ pywebview.start()
 |---|---|---|
 | `get_profiles()` | window loads | Reads all `.json` files from `app/profiles/`, returns list of parsed profile objects |
 | `get_active_profile()` | window loads | Reads `app/active_profile.json`, returns profile name string or `null` |
-| `get_revit_versions()` | window loads | Scans `%APPDATA%\Autodesk\Revit\Addins\` for year subdirs, returns list e.g. `["2024","2025"]` |
-| `is_revit_running()` | on load + polled every 5s | Checks process list for `Revit.exe`, returns bool |
-| `add_profile(file_path)` | user selects file | Validates schema, copies to `app/profiles/`, returns profile object or error |
+| `get_revit_versions()` | window loads | Scans `%APPDATA%\Autodesk\Revit\Addins\` for year subdirs, returns list e.g. `["2024","2025"]` — populates the version dropdown; user picks which to target |
+| `is_revit_running()` | on launch only | Checks process list for `Revit.exe`, returns bool. When true, Load Profile is **blocked** with an error message telling the user to close Revit first. Checked once at launch — not polled |
+| `add_profile(file_path)` | user selects file | Validates schema, copies to `app/profiles/` (profile is now available in the dropdown), returns profile object or error |
 | `load_profile(profile_name, disable_non_required)` | "Load Profile →" | Writes `active_profile.json`, applies hideRules (addin suppression), returns `{ok, warnings[]}` |
 | `remove_profile(profile_name)` | "Remove Profile" | Deletes file from `app/profiles/`, returns ok |
 | `restore_addins(revit_version)` | "↺ Restore Add-ins" | Renames all `.addin.inactive` → `.addin` in the version's addin dir |
@@ -367,6 +416,8 @@ def apply_hide_rules(hide_rules, revit_version):
     addins_dir = get_addins_dir(revit_version)
 
     for tab_name in hide_rules:
+        if tab_name == 'pyRevit':
+            continue  # protected — never disable
         entry = lookup.get(tab_name)
         filename = entry['file'] if entry else _fuzzy_find(tab_name, addins_dir)
         if not filename:
@@ -377,10 +428,10 @@ def apply_hide_rules(hide_rules, revit_version):
             os.rename(src, dest)
 
 def restore_all_addins(revit_version):
-    """Rename all .addin.inactive → .addin in the version folder."""
+    """Rename all .addin.inactive → .addin in the version folder (skip pyRevit)."""
     addins_dir = get_addins_dir(revit_version)
     for f in os.listdir(addins_dir):
-        if f.endswith('.addin.inactive'):
+        if f.endswith('.addin.inactive') and f != 'pyRevit.addin.inactive':
             src  = os.path.join(addins_dir, f)
             dest = src.replace('.addin.inactive', '.addin')
             os.rename(src, dest)
@@ -393,6 +444,7 @@ When enabled, suppress every `.addin` file in the version's addin directory *exc
 def disable_non_required_addins(required_addins, revit_version):
     lookup = load_addin_lookup()
     keep_files = {lookup[a]['file'] for a in required_addins if a in lookup}
+    keep_files.add('pyRevit.addin')  # protected — never disable
     addins_dir  = get_addins_dir(revit_version)
     for f in os.listdir(addins_dir):
         if f.endswith('.addin') and f not in keep_files:
@@ -427,7 +479,7 @@ window.addEventListener('pywebviewready', async function() {
     ]);
     // populate profiles[], activeProfileName, revit version dropdown
     // then renderCards() and selectCard on active profile
-    // start polling is_revit_running() every 5s
+    // check is_revit_running() once and set blocked state if true
 });
 ```
 
@@ -479,6 +531,9 @@ Each panel row in the **Panels** sidebar has a checkbox on its left edge. Checke
 ### Tab canvas drag reorder
 Active panels in the tab canvas are `draggable="true"`. Dragging a panel card onto another swaps their positions in `state.panels` (object key order). Dragging onto the trailing drop zone moves the panel to the end. `renderPanelList()` is called after every reorder to keep the sidebar in sync.
 
+### Tool icons
+RESTer ships with a generic default icon used for all ribbon buttons. Users can assign a custom icon per tool via the TabCreator UI: hovering a tool card in the panel slot list reveals an icon-picker button. Clicking it calls `pick_icon(tool_name)` on the JS bridge, which opens a file dialog filtered to `*.png`, copies the selected file into `icons/` renamed as `{toolName}.png`, and returns the filename. The filename is stored on the slot as `iconFile`. At export, `iconFile` is included in the JSON. At Revit startup, `startup.py` resolves `iconFile` relative to the `icons/` dir; if missing or not set, the generic default icon is used.
+
 ### `activePanels` propagation
 `state.activePanels` (a `Set`) gates four places:
 1. `renderTabCanvas()` — only active panels rendered
@@ -496,3 +551,4 @@ Active panels in the tab canvas are `draggable="true"`. Dragging a panel card on
 6. **`active_profile.json` is written by ProfileSelector** and read by `startup.py`. It is never written by TabCreator.
 7. **TabCreator runs inside Revit** (pywebview from PyRevit button). **ProfileSelector runs outside Revit** (standalone launcher). They do not run simultaneously in the same process.
 8. **Profile filenames** follow the pattern `{profile}_{exportDate}.json`, e.g. `Design_2025_2024-03-12.json`. The `profile` field inside the JSON is the canonical identifier — not the filename.
+9. **Re-exporting a profile overwrites** the existing file in `app/profiles/` (matched by `profile` name). The `exportDate` is updated, and a fresh copy is placed on the Desktop.
