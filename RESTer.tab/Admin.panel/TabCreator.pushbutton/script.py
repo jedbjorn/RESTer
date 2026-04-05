@@ -31,23 +31,61 @@ def get_installed_commands():
         from Autodesk.Windows import ComponentManager
 
         ribbon = ComponentManager.Ribbon
+        log.info('Ribbon found, tabs: %d', ribbon.Tabs.Count)
+
         for tab in ribbon.Tabs:
-            source_tab = tab.Title if not tab.IsContextualTab else None
+            try:
+                source_tab = tab.Title
+                log.debug('Scanning tab: %s', source_tab)
+            except Exception as e:
+                log.error('Error reading tab title: %s', e)
+                continue
+
             for panel in tab.Panels:
                 try:
-                    items = panel.Source.Items
-                except Exception:
+                    panel_source = panel.Source
+                    if panel_source is None:
+                        continue
+                    items = panel_source.Items
+                    if items is None:
+                        continue
+                except Exception as e:
+                    log.debug('Skipping panel: %s', e)
                     continue
+
                 for item in items:
-                    if hasattr(item, 'CommandId') and item.CommandId:
-                        results.append({
-                            'name': item.Text or item.Id or '',
-                            'commandId': str(item.CommandId),
-                            'sourceTab': source_tab,
-                            'icon': None,
-                        })
+                    try:
+                        cmd_id = None
+                        if hasattr(item, 'CommandId'):
+                            cmd_id = item.CommandId
+                        elif hasattr(item, 'Id'):
+                            cmd_id = item.Id
+
+                        if cmd_id:
+                            name = ''
+                            if hasattr(item, 'Text') and item.Text:
+                                name = item.Text
+                            elif hasattr(item, 'Name') and item.Name:
+                                name = item.Name
+                            elif hasattr(item, 'Id'):
+                                name = item.Id
+
+                            results.append({
+                                'name': str(name),
+                                'commandId': str(cmd_id),
+                                'sourceTab': source_tab,
+                                'icon': None,
+                            })
+                    except Exception as e:
+                        log.debug('Skipping item: %s', e)
+                        continue
+
     except Exception as e:
         log.error('Failed to scan ribbon: %s', e)
+        import traceback
+        log.error(traceback.format_exc())
+
+    log.info('Scan complete: %d commands found', len(results))
     return results
 
 
