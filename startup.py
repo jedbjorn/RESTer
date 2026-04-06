@@ -178,17 +178,26 @@ def _build_ribbon(profile):
     try:
         ribbon = ComponentManager.Ribbon
 
-        # Remove existing RST-created tab if it exists
-        tab_id = 'REST_' + tab_name.replace(' ', '_')
-        existing = [t for t in ribbon.Tabs if str(getattr(t, 'Id', '')) == tab_id]
-        for old_tab in existing:
-            ribbon.Tabs.Remove(old_tab)
-            log.info('Removed old tab: %s', tab_name)
+        # Remove existing RST-created tabs by matching Title
+        to_remove = []
+        for t in ribbon.Tabs:
+            try:
+                t_title = str(t.Title) if t.Title else ''
+                if t_title == tab_name:
+                    to_remove.append(t)
+            except Exception:
+                continue
+        for old_tab in to_remove:
+            try:
+                ribbon.Tabs.Remove(old_tab)
+                log.info('Removed old tab: %s', tab_name)
+            except Exception as e:
+                log.warning('Could not remove old tab %s: %s', tab_name, e)
 
         # Create the tab
         tab = RibbonTab()
         tab.Title = tab_name
-        tab.Id = tab_id
+        tab.Id = 'REST_' + tab_name.replace(' ', '_')
         ribbon.Tabs.Add(tab)
         log.info('Created ribbon tab: %s', tab_name)
 
@@ -278,7 +287,7 @@ def _create_tool_button(slot):
             from System.Windows.Controls import Orientation
             btn.Orientation = Orientation.Vertical
         except Exception as e:
-            log.debug('Could not set orientation for %s: %s', name, e)
+            log.debug('Could not set orientation for %s: %s', display_name, e)
 
         # 32x32 icon
         icon = _load_icon(_get_icon_path(slot, small=False))
@@ -429,7 +438,8 @@ def _apply_hide_config():
                 if title in hidden_tabs:
                     tab.IsVisible = False
                     log.debug('Hide config: hidden %s', title)
-            except Exception:
+            except Exception as e:
+                log.debug('Could not set visibility for tab: %s', e)
                 continue
         log.info('Applied hide config: %d tabs hidden', len(hidden_tabs))
     except Exception as e:

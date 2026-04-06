@@ -114,15 +114,19 @@ if os.path.exists(result_path):
         hidden_tabs = set(result.get('hidden', []))
         ribbon = ComponentManager.Ribbon
 
+        # Get the list of non-contextual tabs we showed in the UI
+        shown_titles = set(t.get('title', '') for t in tabs_data)
+
         for tab in ribbon.Tabs:
             try:
                 title = str(tab.Title) if tab.Title else ''
-                if not title or title == 'RST':
+                if not title or title == 'RST' or title == 'File':
                     continue
                 if title in hidden_tabs:
                     tab.IsVisible = False
                     log.info('Hidden tab: %s', title)
-                else:
+                elif title in shown_titles:
+                    # Only unhide tabs we showed in the UI — don't touch contextual tabs
                     tab.IsVisible = True
                     log.debug('Visible tab: %s', title)
             except Exception as e:
