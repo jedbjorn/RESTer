@@ -2,7 +2,7 @@
 """TabCreator - PyRevit pushbutton script.
 Collects Revit data, then launches CPython with pywebview for the UI.
 """
-__title__ = 'Tab\nCreator'
+__title__ = 'Profiler'
 import io
 import os
 import sys
