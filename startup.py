@@ -270,7 +270,7 @@ def _build_ribbon(profile):
 
             branding_panel = AwRibbonPanel()
             branding_source = RibbonPanelSource()
-            branding_source.Title = ' '
+            branding_source.Title = '            '
             branding_source.Id = 'REST_Branding'
             branding_panel.Source = branding_source
 
