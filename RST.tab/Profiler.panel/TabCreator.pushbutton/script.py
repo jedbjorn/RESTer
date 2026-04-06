@@ -113,24 +113,6 @@ def _scan_items(items, source_tab, source_panel, results, depth=0):
 
     if depth == 0:
         log.debug('Tab %s: scanned %d raw items', source_tab, item_count)
-        # Diagnostic: dump item details for Add-Ins tab (to find Kinship)
-        # or any tab with items but no commands
-        dump_tab = (source_tab == 'Add-Ins') or (item_count > 0 and not any(r.get('sourceTab') == source_tab for r in results))
-        if dump_tab:
-            for i, item in enumerate(items):
-                if i >= 5:
-                    break
-                try:
-                    props = {}
-                    for attr in ['CommandId', 'Id', 'Text', 'Name', 'CommandParameter', 'Tag', 'Description', 'ToolTip']:
-                        try:
-                            val = getattr(item, attr, '---')
-                            props[attr] = str(val) if val is not None else 'None'
-                        except Exception:
-                            props[attr] = 'ERR'
-                    log.info('Tab %s item[%d] type=%s props=%s', source_tab, i, type(item).__name__, props)
-                except Exception:
-                    pass
 
 
 def get_installed_commands():

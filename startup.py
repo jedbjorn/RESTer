@@ -260,17 +260,8 @@ def _build_ribbon(profile):
         ribbon.Tabs.Add(tab)
         log.info('Created ribbon tab: %s', tab_name)
 
-        # ── Branding panel (always leftmost, WPF Image for larger size) ──
+        # ── Branding panel (always leftmost) ──
         try:
-            import clr
-            clr.AddReference('PresentationFramework')
-            clr.AddReference('PresentationCore')
-            clr.AddReference('WindowsBase')
-            from System.Windows.Controls import Image as WpfImage
-            from System.Windows.Input import MouseButtonEventHandler
-            from System.Windows import Thickness
-            from Autodesk.Windows import RibbonCommandItem
-
             branding_panel = AwRibbonPanel()
             branding_source = RibbonPanelSource()
             branding_source.Title = ' '

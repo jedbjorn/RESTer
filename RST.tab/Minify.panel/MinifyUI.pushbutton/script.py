@@ -9,3 +9,6 @@ cmd_id = 'CustomCtrl_%CustomCtrl_%pyRevit%Toggles%MinifyUI'
 cmd = RevitCommandId.LookupCommandId(cmd_id)
 if cmd:
     __revit__.PostCommand(cmd)
+else:
+    from pyrevit import forms
+    forms.alert('MinifyUI command not found.\nEnsure pyRevit is installed.', title='RST')
