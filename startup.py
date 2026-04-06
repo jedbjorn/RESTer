@@ -184,15 +184,15 @@ def _make_brush(hex_color, alpha=1.0):
         # RectangleGeometry with rounded corners
         from System.Windows.Media import RectangleGeometry
         rect_geo = RectangleGeometry(Rect(0, 0, 1, 1))
-        rect_geo.RadiusX = 0.06
-        rect_geo.RadiusY = 0.08
+        rect_geo.RadiusX = 0.12
+        rect_geo.RadiusY = 0.15
 
         drawing = GeometryDrawing(fill, None, rect_geo)
 
         brush = DrawingBrush(drawing)
         brush.Stretch = Stretch.Fill
         brush.ViewportUnits = BrushMappingMode.RelativeToBoundingBox
-        brush.TileMode = TileMode.None
+        brush.TileMode = getattr(TileMode, 'None')
         return brush
     except Exception as e:
         log.debug('Could not create rounded brush for %s: %s — falling back to solid', hex_color, e)
