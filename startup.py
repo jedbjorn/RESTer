@@ -178,10 +178,17 @@ def _build_ribbon(profile):
     try:
         ribbon = ComponentManager.Ribbon
 
+        # Remove existing RST-created tab if it exists
+        tab_id = 'REST_' + tab_name.replace(' ', '_')
+        existing = [t for t in ribbon.Tabs if str(getattr(t, 'Id', '')) == tab_id]
+        for old_tab in existing:
+            ribbon.Tabs.Remove(old_tab)
+            log.info('Removed old tab: %s', tab_name)
+
         # Create the tab
         tab = RibbonTab()
         tab.Title = tab_name
-        tab.Id = 'REST_' + tab_name.replace(' ', '_')
+        tab.Id = tab_id
         ribbon.Tabs.Add(tab)
         log.info('Created ribbon tab: %s', tab_name)
 
