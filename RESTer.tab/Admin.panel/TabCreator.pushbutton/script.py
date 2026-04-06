@@ -24,7 +24,7 @@ def get_revit_version():
         return None
 
 
-def _scan_items(items, source_tab, results, depth=0):
+def _scan_items(items, source_tab, source_panel, results, depth=0):
     """Recursively scan ribbon items, descending into containers."""
     item_count = 0
     for item in items:
@@ -40,7 +40,7 @@ def _scan_items(items, source_tab, results, depth=0):
             try:
                 child_items = getattr(item, 'Items', None)
                 if child_items is not None:
-                    _scan_items(child_items, source_tab, results, depth + 1)
+                    _scan_items(child_items, source_tab, source_panel, results, depth + 1)
             except Exception:
                 pass
 
@@ -91,10 +91,18 @@ def _scan_items(items, source_tab, results, depth=0):
             if not name:
                 name = cmd_str
 
+            # Build unique display name: "ToolName (Tab > Panel)" or "ToolName (Tab)"
+            display_name = name
+            if source_panel and source_panel != source_tab:
+                display_name = '%s (%s > %s)' % (name, source_tab, source_panel)
+            elif source_tab:
+                display_name = '%s (%s)' % (name, source_tab)
+
             results.append({
-                'name': name,
+                'name': display_name,
                 'commandId': cmd_str,
                 'sourceTab': source_tab,
+                'sourcePanel': source_panel,
                 'icon': None,
             })
         except Exception as e:
@@ -152,11 +160,16 @@ def get_installed_commands():
                     items = panel_source.Items
                     if items is None:
                         continue
+                    panel_title = ''
+                    try:
+                        panel_title = str(panel_source.Title) if panel_source.Title else ''
+                    except Exception:
+                        pass
                 except Exception as e:
                     log.debug('Skipping panel: %s', e)
                     continue
 
-                _scan_items(items, source_tab, results)
+                _scan_items(items, source_tab, panel_title, results)
 
     except Exception as e:
         log.error('Failed to scan ribbon: %s', e)
