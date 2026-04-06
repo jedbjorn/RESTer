@@ -105,6 +105,16 @@ proc = subprocess.Popen(['python', launcher], creationflags=CREATE_NO_WINDOW)
 proc.wait()
 log.info('Hide Tabs UI closed')
 
+# Load previous hidden list so we know what WE hid vs what Revit hid
+_config_path = os.path.join(_root, 'app', 'hide_config.json')
+_prev_hidden = set()
+if os.path.exists(_config_path):
+    try:
+        with io.open(_config_path, 'r', encoding='utf-8') as f:
+            _prev_hidden = set(json.load(f).get('hidden', []))
+    except Exception:
+        pass
+
 # Read result and apply visibility
 if os.path.exists(result_path):
     try:
@@ -114,32 +124,23 @@ if os.path.exists(result_path):
         hidden_tabs = set(result.get('hidden', []))
         ribbon = ComponentManager.Ribbon
 
-        # Get the list of non-contextual tabs we showed in the UI
-        shown_titles = set(t.get('title', '') for t in tabs_data)
-
-        # Tabs Revit manages contextually — never touch these
-        _CONTEXTUAL = {'Family Editor', 'In-Place Model', 'In-Place Mass', 'Zone', 'Create'}
+        # Only unhide tabs that WE previously hid (removed from hidden list)
+        to_unhide = _prev_hidden - hidden_tabs
 
         for tab in ribbon.Tabs:
             try:
                 title = str(tab.Title) if tab.Title else ''
                 if not title or title == 'RST' or title == 'File':
                     continue
-                # Skip contextual tabs — Revit controls their visibility
-                is_contextual = False
-                try:
-                    is_contextual = bool(tab.IsContextualTab)
-                except Exception:
-                    pass
-                if is_contextual or title in _CONTEXTUAL:
-                    continue
 
                 if title in hidden_tabs:
                     tab.IsVisible = False
                     log.info('Hidden tab: %s', title)
-                elif title in shown_titles:
+                elif title in to_unhide:
+                    # Only restore tabs we explicitly hid before — never
+                    # force-show tabs Revit is hiding for its own reasons
                     tab.IsVisible = True
-                    log.debug('Visible tab: %s', title)
+                    log.info('Unhidden tab: %s', title)
             except Exception as e:
                 log.error('Error setting visibility for tab: %s', e)
 
