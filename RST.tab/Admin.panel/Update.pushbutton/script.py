@@ -84,7 +84,9 @@ if not pulled:
 
         # Download
         log.info('Downloading %s', REPO_ZIP_URL)
-        resp = urlopen(REPO_ZIP_URL)
+        import ssl
+        ctx = ssl.create_default_context()
+        resp = urlopen(REPO_ZIP_URL, timeout=30, context=ctx)
         with open(zip_path, 'wb') as f:
             while True:
                 chunk = resp.read(65536)
@@ -164,6 +166,9 @@ if not pulled:
 
     except Exception as e:
         log.error('Zip download failed: %s', e)
+        import traceback
+        log.error(traceback.format_exc())
+        _zip_error = str(e)
         try:
             shutil.rmtree(tmp_dir, ignore_errors=True)
         except Exception:
@@ -171,9 +176,9 @@ if not pulled:
 
 # ── Result ────────────────────────────────────────────────────────────────────
 if not pulled:
+    err_detail = _zip_error if '_zip_error' in dir() else 'Git not available'
     forms.alert(
-        'Could not update RST.\n\n'
-        'Check your internet connection and try again.',
+        'Could not update RST.\n\n%s' % err_detail,
         title='RST Update'
     )
 elif result_msg == 'already_up_to_date':
