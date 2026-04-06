@@ -1116,22 +1116,46 @@
   function confirmRemove() {
     if (!selectedProfile) return;
     const name = selectedProfile.profile;
-    if (confirm(`Delete "${name}" from your profile library?\n\nThis deletes the local copy from the profiles directory. The original file shared by the admin is not affected.`)) {
+    const isLoaded = name === activeProfileName;
+
+    var msg = 'Delete "' + name + '" from your profile library?\n\nThis deletes the local copy. The original file shared by the admin is not affected.';
+    if (isLoaded) {
+      msg += '\n\nThis is the currently loaded profile. Deleting it will create a blank RST tab on next Revit launch.';
+    }
+
+    if (!confirm(msg)) return;
+
+    function doDelete() {
       window.pywebview.api.remove_profile(name).then(function(result) {
         if (!result.ok) {
           alert('Failed to delete profile.');
           return;
         }
-        const idx = profiles.findIndex(p => p.profile === name);
+        var idx = profiles.findIndex(function(p) { return p.profile === name; });
         if (idx !== -1) profiles.splice(idx, 1);
-        if (activeProfileName === name) activeProfileName = null;
+        if (isLoaded) activeProfileName = null;
         selectedProfile = null;
         renderCards();
-        const firstCard = document.querySelector('.profile-card');
+        var firstCard = document.querySelector('.profile-card');
         if (firstCard) firstCard.click();
       }).catch(function(err) {
         alert('Error deleting profile: ' + (err.message || err));
       });
+    }
+
+    // Unload first if this is the active profile
+    if (isLoaded) {
+      window.pywebview.api.unload_profile().then(function(result) {
+        if (!result.ok) {
+          alert('Failed to unload profile.');
+          return;
+        }
+        doDelete();
+      }).catch(function(err) {
+        alert('Error unloading profile: ' + (err.message || err));
+      });
+    } else {
+      doDelete();
     }
   }
 
