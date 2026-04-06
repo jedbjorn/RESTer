@@ -42,14 +42,14 @@ class HideTabsAPI:
             'savedHidden': _saved_hidden,
         }
 
-    def apply(self, hidden_list, mode):
-        log.info('Applying %s: %s', mode, hidden_list)
+    def apply(self, hidden_list):
+        log.info('Applying hidden: %s', hidden_list)
         # Save config persistently
         with open(_config_path, 'w', encoding='utf-8') as f:
             json.dump({'hidden': hidden_list}, f)
         # Write result for IronPython to read
         with open(_result_path, 'w', encoding='utf-8') as f:
-            json.dump({'hidden': hidden_list, 'mode': mode}, f)
+            json.dump({'hidden': hidden_list}, f)
         for w in webview.windows:
             w.destroy()
         return {'ok': True}
@@ -72,20 +72,8 @@ HTML = r"""<!DOCTYPE html>
     padding: 14px 16px;
     background: #181825;
     border-bottom: 1px solid #313244;
-    display: flex; align-items: center; justify-content: space-between;
   }
   .header-title { font-size: 13px; font-weight: 600; letter-spacing: 0.05em; }
-  .mode-switch {
-    display: flex; border-radius: 4px; overflow: hidden;
-    border: 1px solid #313244;
-  }
-  .mode-btn {
-    padding: 4px 12px; font-size: 10px; font-weight: 500;
-    cursor: pointer; border: none; transition: all 0.15s;
-    background: transparent; color: #6c7086;
-  }
-  .mode-btn.active-hide { background: #f38ba8; color: #1e1e2e; }
-  .mode-btn.active-show { background: #a6e3a1; color: #1e1e2e; }
   .list { flex: 1; overflow-y: auto; padding: 4px 0; }
   .tab-row {
     display: flex; align-items: center; gap: 10px;
@@ -111,11 +99,6 @@ HTML = r"""<!DOCTYPE html>
     font-size: 9px; padding: 1px 6px; border-radius: 3px;
     background: rgba(245,158,11,0.15); color: #f59e0b;
   }
-  .tab-status {
-    font-size: 9px; padding: 1px 6px; border-radius: 3px;
-  }
-  .tab-status.hidden-status { background: rgba(243,139,168,0.15); color: #f38ba8; }
-  .tab-status.visible-status { background: rgba(166,227,161,0.15); color: #a6e3a1; }
   .sep { height: 1px; background: #313244; margin: 4px 0; }
   .footer {
     padding: 10px 16px;
@@ -141,10 +124,6 @@ HTML = r"""<!DOCTYPE html>
 
 <div class="header">
   <span class="header-title">Hide Tabs</span>
-  <div class="mode-switch">
-    <button class="mode-btn active-hide" id="modeHide" onclick="setMode('hide')">Hide</button>
-    <button class="mode-btn" id="modeShow" onclick="setMode('show')">Unhide</button>
-  </div>
 </div>
 
 <div class="list" id="tabList"></div>
@@ -158,21 +137,13 @@ HTML = r"""<!DOCTYPE html>
   var tabs = [];
   var rstSourceTabs = [];
   var hiddenSet = {};
-  var mode = 'hide';
   var PROTECTED = ['RST', 'File'];
-
-  function setMode(m) {
-    mode = m;
-    document.getElementById('modeHide').className = 'mode-btn' + (m === 'hide' ? ' active-hide' : '');
-    document.getElementById('modeShow').className = 'mode-btn' + (m === 'show' ? ' active-show' : '');
-    render();
-  }
 
   function render() {
     var list = document.getElementById('tabList');
     var html = '';
 
-    // First row: "Hide tabs on RST" action
+    // First row: bulk toggle for tabs whose add-ins are on RST
     var rstHideable = rstSourceTabs.filter(function(t) {
       return t !== 'Add-Ins' && PROTECTED.indexOf(t) < 0;
     });
@@ -186,7 +157,6 @@ HTML = r"""<!DOCTYPE html>
 
     html += '<div class="sep"></div>';
 
-    // All tabs — always shown regardless of mode
     tabs.forEach(function(tab) {
       var isProtected = PROTECTED.indexOf(tab.title) >= 0;
       var isHidden = !!hiddenSet[tab.title];
@@ -200,11 +170,6 @@ HTML = r"""<!DOCTYPE html>
 
       var badges = '';
       if (inRst) badges += '<span class="tab-badge">in RST</span> ';
-      if (isHidden) {
-        badges += '<span class="tab-status hidden-status">hidden</span>';
-      } else {
-        badges += '<span class="tab-status visible-status">visible</span>';
-      }
 
       var onclick = isProtected ? '' : "toggleTab('" + tab.title.replace(/'/g, "\\'") + "')";
 
@@ -248,7 +213,7 @@ HTML = r"""<!DOCTYPE html>
   function apply() {
     var hidden = Object.keys(hiddenSet);
     if (window.pywebview && window.pywebview.api) {
-      window.pywebview.api.apply(hidden, mode);
+      window.pywebview.api.apply(hidden);
     }
   }
 
@@ -257,7 +222,6 @@ HTML = r"""<!DOCTYPE html>
       window.pywebview.api.get_tabs().then(function(data) {
         tabs = data.tabs || [];
         rstSourceTabs = data.rstSourceTabs || [];
-        // Restore saved config
         var saved = data.savedHidden || [];
         saved.forEach(function(t) {
           if (PROTECTED.indexOf(t) < 0) {
