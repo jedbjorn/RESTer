@@ -192,10 +192,17 @@ def _make_brush(hex_color, alpha=1.0):
         brush = DrawingBrush(drawing)
         brush.Stretch = Stretch.Fill
         brush.ViewportUnits = BrushMappingMode.RelativeToBoundingBox
-        brush.TileMode = getattr(TileMode, 'None')
+        try:
+            brush.TileMode = TileMode.None
+        except Exception:
+            try:
+                brush.TileMode = getattr(TileMode, 'None')
+            except Exception:
+                pass  # leave default TileMode
+        log.debug('Created rounded DrawingBrush for %s (alpha=%.2f)', hex_color, alpha)
         return brush
     except Exception as e:
-        log.debug('Could not create rounded brush for %s: %s — falling back to solid', hex_color, e)
+        log.warning('DrawingBrush failed for %s: %s — falling back to solid', hex_color, e)
         # Fallback to solid brush
         try:
             from System.Windows.Media import SolidColorBrush
