@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Reload — triggers pyRevit reload."""
-__title__ = ' '
+__title__ = 'Reload\npyRevit'
 __doc__ = 'Reload pyRevit to apply profile changes and refresh the ribbon.'
 
 from Autodesk.Revit.UI import RevitCommandId
