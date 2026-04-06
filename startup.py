@@ -260,24 +260,33 @@ def _build_ribbon(profile):
         ribbon.Tabs.Add(tab)
         log.info('Created ribbon tab: %s', tab_name)
 
-        # ── Branding panel (always leftmost) ──
+        # ── Branding panel (always leftmost, WPF Image for larger size) ──
         try:
+            import clr
+            clr.AddReference('PresentationFramework')
+            clr.AddReference('PresentationCore')
+            clr.AddReference('WindowsBase')
+            from System.Windows.Controls import Image as WpfImage
+            from System.Windows.Input import MouseButtonEventHandler
+            from System.Windows import Thickness
+            from Autodesk.Windows import RibbonCommandItem
+
             branding_panel = AwRibbonPanel()
             branding_source = RibbonPanelSource()
             branding_source.Title = ' '
             branding_source.Id = 'REST_Branding'
             branding_panel.Source = branding_source
 
-            # Branding button — logo only, no text, 80x80
+            # Create a RibbonButton but override its visual with a larger WPF Image
             branding_btn = RibbonButton()
             branding_btn.Text = ''
             branding_btn.Id = 'REST_Branding_Btn'
             branding_btn.ShowText = False
             branding_btn.Size = RibbonItemSize.Large
 
-            # Load branding.png and force 80x80
+            # Load branding.png at 48x48 for the button image
             branding_icon_path = os.path.join(_icons_dir, 'branding.png')
-            icon = _load_icon_sized(branding_icon_path, 80, 80)
+            icon = _load_icon_sized(branding_icon_path, 48, 48)
             if icon:
                 branding_btn.LargeImage = icon
                 branding_btn.Image = icon

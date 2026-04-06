@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Update RST - pulls latest via git, or downloads zip from GitHub as fallback."""
+"""Update RST - downloads update, stages it, reloads pyRevit to unlock files,
+then a background script applies the update."""
 __title__ = 'Update\nRST'
 import io
 import os
@@ -71,7 +72,7 @@ if not pulled:
         except Exception:
             continue
 
-# ── Fallback: download zip from GitHub ────────────────────────────────────────
+# ── Fallback: download zip, stage, then apply after pyRevit reload ───────────
 if not pulled:
     log.info('Git not available — downloading zip from GitHub')
     try:
@@ -80,8 +81,12 @@ if not pulled:
         else:
             from urllib2 import urlopen
 
-        tmp_dir = tempfile.mkdtemp(prefix='rst_update_')
-        zip_path = os.path.join(tmp_dir, 'rst.zip')
+        staging_dir = os.path.join(os.environ.get('TEMP', tempfile.gettempdir()), 'rst_update')
+        if os.path.exists(staging_dir):
+            shutil.rmtree(staging_dir, ignore_errors=True)
+        os.makedirs(staging_dir)
+
+        zip_path = os.path.join(staging_dir, 'rst.zip')
 
         # Download
         log.info('Downloading %s', REPO_ZIP_URL)
@@ -98,20 +103,21 @@ if not pulled:
         log.info('Downloaded %d bytes', os.path.getsize(zip_path))
 
         # Extract
-        extract_dir = os.path.join(tmp_dir, 'extracted')
+        extract_dir = os.path.join(staging_dir, 'extracted')
         with zipfile.ZipFile(zip_path, 'r') as zf:
             zf.extractall(extract_dir)
 
-        # GitHub zips contain a top-level folder like RST-main/
+        # Find source dir inside zip
         entries = os.listdir(extract_dir)
         if len(entries) == 1 and os.path.isdir(os.path.join(extract_dir, entries[0])):
             source_dir = os.path.join(extract_dir, entries[0])
         else:
             source_dir = extract_dir
 
-        # 1. Preserve user data
-        _preserve = ['app/active_profile.json', 'app/profiles', 'rester.log']
-        preserve_dir = os.path.join(tmp_dir, 'preserve')
+        # Preserve user data to staging
+        preserve_dir = os.path.join(staging_dir, 'preserve')
+        _preserve = ['app/active_profile.json', 'app/profiles', 'rester.log',
+                      'icons/branding.png']
         for rel in _preserve:
             src = os.path.join(_root, rel)
             if os.path.exists(src):
@@ -124,76 +130,45 @@ if not pulled:
                 else:
                     shutil.copy2(src, bak)
 
-        # 2. Wipe install dir (except .git, skip locked files)
-        _skip_root = {'.git', 'rester.log'}
-        def _safe_rmtree(path):
-            """Remove a directory tree, skipping any locked files."""
-            for dirpath, dirnames, filenames in os.walk(path, topdown=False):
-                for fn in filenames:
-                    fp = os.path.join(dirpath, fn)
-                    try:
-                        os.remove(fp)
-                    except OSError as e:
-                        log.warning('Locked file, skipping: %s (%s)', fp, e)
-                for dn in dirnames:
-                    dp = os.path.join(dirpath, dn)
-                    try:
-                        os.rmdir(dp)
-                    except OSError:
-                        pass  # not empty due to locked files
-            try:
-                os.rmdir(path)
-            except OSError:
-                pass
+        # Write a batch script that applies the update after pyRevit releases locks
+        apply_bat = os.path.join(staging_dir, 'apply_update.bat')
+        with open(apply_bat, 'w') as f:
+            f.write('@echo off\r\n')
+            f.write('echo RST Update: waiting for pyRevit to release files...\r\n')
+            f.write('timeout /t 5 /nobreak >nul\r\n')
+            f.write('echo RST Update: applying...\r\n')
+            # Wipe install dir (except .git and rester.log)
+            f.write('for /d %%D in ("%s\\*") do (\r\n' % _root)
+            f.write('  if /i not "%%~nxD"==".git" (\r\n')
+            f.write('    rmdir /s /q "%%D" 2>nul\r\n')
+            f.write('  )\r\n')
+            f.write(')\r\n')
+            f.write('for %%F in ("%s\\*") do (\r\n' % _root)
+            f.write('  if /i not "%%~nxF"=="rester.log" (\r\n')
+            f.write('    del /q "%%F" 2>nul\r\n')
+            f.write('  )\r\n')
+            f.write(')\r\n')
+            # Copy new files
+            f.write('xcopy "%s\\*" "%s\\" /e /y /q\r\n' % (source_dir, _root))
+            # Restore user data
+            f.write('if exist "%s" (\r\n' % preserve_dir)
+            f.write('  xcopy "%s\\*" "%s\\" /e /y /q\r\n' % (preserve_dir, _root))
+            f.write(')\r\n')
+            # Cleanup staging
+            f.write('echo RST Update: done. Reload pyRevit to complete.\r\n')
+            f.write('timeout /t 2 /nobreak >nul\r\n')
+            f.write('rmdir /s /q "%s" 2>nul\r\n' % staging_dir)
 
-        for item in os.listdir(_root):
-            if item in _skip_root:
-                continue
-            item_path = os.path.join(_root, item)
-            try:
-                if os.path.isdir(item_path):
-                    _safe_rmtree(item_path)
-                else:
-                    os.remove(item_path)
-            except OSError as e:
-                log.warning('Could not remove %s: %s (skipping)', item, e)
+        # Launch the batch script in background (hidden window)
+        CREATE_NO_WINDOW = 0x08000000
+        subprocess.Popen(
+            ['cmd', '/c', apply_bat],
+            creationflags=CREATE_NO_WINDOW,
+        )
+        log.info('Staged update and launched apply script')
 
-        # 3. Install new files from zip (skip locked files)
-        for dirpath, dirnames, filenames in os.walk(source_dir):
-            rel_dir = os.path.relpath(dirpath, source_dir)
-            target_dir = os.path.join(_root, rel_dir) if rel_dir != '.' else _root
-            if not os.path.exists(target_dir):
-                os.makedirs(target_dir)
-            for fn in filenames:
-                try:
-                    shutil.copy2(
-                        os.path.join(dirpath, fn),
-                        os.path.join(target_dir, fn),
-                    )
-                except OSError as e:
-                    log.warning('Could not write %s: %s (skipping)', fn, e)
-
-        # 4. Restore user data (skip locked files)
-        for dirpath, dirnames, filenames in os.walk(preserve_dir):
-            rel_dir = os.path.relpath(dirpath, preserve_dir)
-            target_dir = os.path.join(_root, rel_dir) if rel_dir != '.' else _root
-            if not os.path.exists(target_dir):
-                os.makedirs(target_dir)
-            for fn in filenames:
-                try:
-                    shutil.copy2(
-                        os.path.join(dirpath, fn),
-                        os.path.join(target_dir, fn),
-                    )
-                except OSError as e:
-                    log.warning('Could not restore %s: %s (skipping)', fn, e)
-
-        # Cleanup temp
-        shutil.rmtree(tmp_dir, ignore_errors=True)
-
-        result_msg = 'updated'
+        result_msg = 'staged'
         pulled = True
-        log.info('Updated from GitHub zip')
 
     except Exception as e:
         log.error('Zip download failed: %s', e)
@@ -201,7 +176,8 @@ if not pulled:
         log.error(traceback.format_exc())
         _zip_error = str(e)
         try:
-            shutil.rmtree(tmp_dir, ignore_errors=True)
+            if 'staging_dir' in dir():
+                shutil.rmtree(staging_dir, ignore_errors=True)
         except Exception:
             pass
 
@@ -215,36 +191,24 @@ if not pulled:
 elif result_msg == 'already_up_to_date':
     forms.alert('RST is already up to date.', title='RST Update')
 else:
-    log.info('Update complete, reloading pyRevit...')
-    reloaded = False
-    # Try pyRevit internal reload first (we're running inside Revit)
-    try:
-        from pyrevit.loader import sessionmgr
-        sessionmgr.reload()
-        reloaded = True
-    except Exception as e:
-        log.warning('sessionmgr.reload() failed: %s', e)
-    # Fallback to CLI
-    if not reloaded:
-        cli_candidates = []
-        appdata = os.environ.get('APPDATA', '')
-        if appdata:
-            cli_candidates.append(os.path.join(appdata, 'pyRevit-Master', 'bin', 'pyrevit.exe'))
-            cli_candidates.append(os.path.join(appdata, 'pyRevit', 'bin', 'pyrevit.exe'))
-        cli_candidates.append('pyrevit')
-        CREATE_NO_WINDOW = 0x08000000
-        for cli in cli_candidates:
-            try:
-                subprocess.Popen(
-                    [cli, 'reload'],
-                    creationflags=CREATE_NO_WINDOW,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-                log.info('pyRevit reload triggered via CLI: %s', cli)
-                reloaded = True
-                break
-            except Exception:
-                continue
-    if not reloaded:
-        forms.alert('Updated. Please reload pyRevit manually.', title='RST Update')
+    # For git updates, reload immediately
+    if result_msg == 'updated':
+        log.info('Git update complete, reloading pyRevit...')
+        try:
+            from pyrevit.loader import sessionmgr
+            sessionmgr.reload()
+        except Exception as e:
+            log.warning('Reload failed: %s', e)
+            forms.alert('Updated. Please reload pyRevit manually.', title='RST Update')
+    # For staged zip updates, reload pyRevit to release locks, then batch script takes over
+    elif result_msg == 'staged':
+        forms.alert(
+            'Update downloaded. pyRevit will reload now to apply.\n\n'
+            'After reload, click Update again if the RST tab looks unchanged.',
+            title='RST Update'
+        )
+        try:
+            from pyrevit.loader import sessionmgr
+            sessionmgr.reload()
+        except Exception as e:
+            log.warning('Reload failed: %s', e)
