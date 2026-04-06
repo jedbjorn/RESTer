@@ -123,15 +123,35 @@ if not pulled:
                 else:
                     shutil.copy2(src, bak)
 
-        # 2. Wipe install dir (except .git and locked files)
-        _skip = {'.git', 'rester.log'}
+        # 2. Wipe install dir (except .git, skip locked files)
+        _skip_root = {'.git', 'rester.log'}
+        def _safe_rmtree(path):
+            """Remove a directory tree, skipping any locked files."""
+            for dirpath, dirnames, filenames in os.walk(path, topdown=False):
+                for fn in filenames:
+                    fp = os.path.join(dirpath, fn)
+                    try:
+                        os.remove(fp)
+                    except OSError as e:
+                        log.warning('Locked file, skipping: %s (%s)', fp, e)
+                for dn in dirnames:
+                    dp = os.path.join(dirpath, dn)
+                    try:
+                        os.rmdir(dp)
+                    except OSError:
+                        pass  # not empty due to locked files
+            try:
+                os.rmdir(path)
+            except OSError:
+                pass
+
         for item in os.listdir(_root):
-            if item in _skip:
+            if item in _skip_root:
                 continue
             item_path = os.path.join(_root, item)
             try:
                 if os.path.isdir(item_path):
-                    shutil.rmtree(item_path)
+                    _safe_rmtree(item_path)
                 else:
                     os.remove(item_path)
             except OSError as e:
