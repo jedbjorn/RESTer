@@ -137,10 +137,11 @@ TabCreator (admin)                    ProfileSelector (user)
 
 ## Protected Add-ins
 
-**pyRevit** (`pyRevit.addin`) is always protected. The backend must never disable, hide, or rename it. Enforced in:
-- `apply_hide_rules()` — skips `pyRevit`
+**pyRevit** (`pyRevit.addin`) is always protected. The backend must never disable or rename it. Enforced in:
 - `disable_non_required_addins()` — always keeps `pyRevit.addin`
 - `restore_all_addins()` — skips `pyRevit.addin.inactive`
+
+> **Tab hiding** is handled by pyRevit's built-in Minify UI — not by RST.
 
 ---
 
