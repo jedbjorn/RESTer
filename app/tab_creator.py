@@ -253,9 +253,9 @@ class TabCreatorAPI:
         try:
             from PIL import Image
             img = Image.open(src_path)
-            img = img.resize((256, 256), Image.LANCZOS)
+            img = img.resize((32, 32), Image.LANCZOS)
             img.save(dest_path, 'PNG')
-            log.info('Branding logo saved (resized 256x256): %s', dest_path)
+            log.info('Branding logo saved (resized 32x32): %s', dest_path)
         except ImportError:
             log.info('PIL not available, copying file directly')
             shutil.copy2(src_path, dest_path)
