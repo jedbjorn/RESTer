@@ -158,29 +158,35 @@ if not pulled:
             except OSError as e:
                 log.warning('Could not remove %s: %s (skipping)', item, e)
 
-        # 3. Install new files from zip
+        # 3. Install new files from zip (skip locked files)
         for dirpath, dirnames, filenames in os.walk(source_dir):
             rel_dir = os.path.relpath(dirpath, source_dir)
             target_dir = os.path.join(_root, rel_dir) if rel_dir != '.' else _root
             if not os.path.exists(target_dir):
                 os.makedirs(target_dir)
             for fn in filenames:
-                shutil.copy2(
-                    os.path.join(dirpath, fn),
-                    os.path.join(target_dir, fn),
-                )
+                try:
+                    shutil.copy2(
+                        os.path.join(dirpath, fn),
+                        os.path.join(target_dir, fn),
+                    )
+                except OSError as e:
+                    log.warning('Could not write %s: %s (skipping)', fn, e)
 
-        # 4. Restore user data
+        # 4. Restore user data (skip locked files)
         for dirpath, dirnames, filenames in os.walk(preserve_dir):
             rel_dir = os.path.relpath(dirpath, preserve_dir)
             target_dir = os.path.join(_root, rel_dir) if rel_dir != '.' else _root
             if not os.path.exists(target_dir):
                 os.makedirs(target_dir)
             for fn in filenames:
-                shutil.copy2(
-                    os.path.join(dirpath, fn),
-                    os.path.join(target_dir, fn),
-                )
+                try:
+                    shutil.copy2(
+                        os.path.join(dirpath, fn),
+                        os.path.join(target_dir, fn),
+                    )
+                except OSError as e:
+                    log.warning('Could not restore %s: %s (skipping)', fn, e)
 
         # Cleanup temp
         shutil.rmtree(tmp_dir, ignore_errors=True)
