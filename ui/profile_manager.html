@@ -1612,8 +1612,10 @@
           if (cmd.commandId && !existingIds[cmd.commandId]) {
             state.allTools.push({
               name:      cmd.name,
+              baseName:  cmd.baseName || cmd.name,
               icon:      cmd.icon || '',
               sourceTab: cmd.sourceTab || null,
+              sourcePanel: cmd.sourcePanel || null,
               commandId: cmd.commandId,
             });
           }
