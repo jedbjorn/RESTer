@@ -137,16 +137,45 @@ def _hex_to_color(hex_str):
 
 
 def _make_brush(hex_color):
-    """Create a SolidColorBrush from a hex color string."""
+    """Create a DrawingBrush that paints a rounded rectangle."""
     try:
         import clr
         clr.AddReference('PresentationCore')
-        from System.Windows.Media import SolidColorBrush
+        from System.Windows.Media import (
+            SolidColorBrush, DrawingBrush, GeometryDrawing,
+            BrushMappingMode, TileMode, Stretch,
+        )
+        from System.Windows import Rect
+
         color = _hex_to_color(hex_color)
-        if color:
-            return SolidColorBrush(color)
+        if not color:
+            return None
+
+        fill = SolidColorBrush(color)
+
+        # RectangleGeometry with rounded corners
+        from System.Windows.Media import RectangleGeometry
+        rect_geo = RectangleGeometry(Rect(0, 0, 1, 1))
+        rect_geo.RadiusX = 0.06
+        rect_geo.RadiusY = 0.08
+
+        drawing = GeometryDrawing(fill, None, rect_geo)
+
+        brush = DrawingBrush(drawing)
+        brush.Stretch = Stretch.Fill
+        brush.ViewportUnits = BrushMappingMode.RelativeToBoundingBox
+        brush.TileMode = TileMode.None
+        return brush
     except Exception as e:
-        log.debug('Could not create brush for %s: %s', hex_color, e)
+        log.debug('Could not create rounded brush for %s: %s — falling back to solid', hex_color, e)
+        # Fallback to solid brush
+        try:
+            from System.Windows.Media import SolidColorBrush
+            color = _hex_to_color(hex_color)
+            if color:
+                return SolidColorBrush(color)
+        except Exception:
+            pass
     return None
 
 
