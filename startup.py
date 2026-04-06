@@ -207,21 +207,22 @@ def _build_ribbon(profile):
     try:
         ribbon = ComponentManager.Ribbon
 
-        # Remove existing RST-created tabs by matching Title
+        # Remove ALL RST-created tabs by ID prefix (handles renames)
         to_remove = []
         for t in ribbon.Tabs:
             try:
-                t_title = str(t.Title) if t.Title else ''
-                if t_title == tab_name:
+                t_id = str(t.Id) if t.Id else ''
+                if t_id.startswith('REST_'):
                     to_remove.append(t)
             except Exception:
                 continue
         for old_tab in to_remove:
             try:
+                old_title = str(old_tab.Title) if old_tab.Title else '?'
                 ribbon.Tabs.Remove(old_tab)
-                log.info('Removed old tab: %s', tab_name)
+                log.info('Removed old RST tab: %s (id: %s)', old_title, old_tab.Id)
             except Exception as e:
-                log.warning('Could not remove old tab %s: %s', tab_name, e)
+                log.warning('Could not remove tab %s: %s', old_tab.Id, e)
 
         # Create the tab
         tab = RibbonTab()

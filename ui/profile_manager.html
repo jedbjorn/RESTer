@@ -2619,9 +2619,12 @@
           active: true,
           slots: (p.slots || []).map(slot => {
             const s = { type: slot.type, name: slot.name };
+            if (slot.baseName) s.baseName = slot.baseName;
             if (slot.type === 'tool') {
               s.icon = slot.icon || '●';
               s.commandId = slot.commandId || '';
+              s.sourceTab = slot.sourceTab || null;
+              s.sourcePanel = slot.sourcePanel || null;
               if (slot.iconFile) s.iconFile = slot.iconFile;
             }
             return s;
@@ -2655,8 +2658,10 @@
             if (m) sourceTab = m[1];
             state.allTools.push({
               name: slot.name,
+              baseName: slot.baseName || slot.name,
               icon: slot.icon || '●',
-              sourceTab: sourceTab,
+              sourceTab: sourceTab || slot.sourceTab || null,
+              sourcePanel: slot.sourcePanel || null,
               commandId: slot.commandId,
             });
           }
