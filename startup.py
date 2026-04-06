@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""RESTer startup hook - runs on every Revit launch via PyRevit.
+"""REST startup hook - runs on every Revit launch via PyRevit.
 Reads active_profile.json, builds a custom ribbon tab if a profile is loaded.
 """
 import io
@@ -169,7 +169,7 @@ def _build_ribbon(profile):
         log.error('AdWindows import failed: %s', e)
         return False
 
-    tab_name = profile.get('tab', 'RESTer')
+    tab_name = profile.get('tab', 'REST')
     panels = profile.get('panels', [])
     stacks = profile.get('stacks', {})
 
@@ -181,7 +181,7 @@ def _build_ribbon(profile):
         # Create the tab
         tab = RibbonTab()
         tab.Title = tab_name
-        tab.Id = 'RESTer_' + tab_name.replace(' ', '_')
+        tab.Id = 'REST_' + tab_name.replace(' ', '_')
         ribbon.Tabs.Add(tab)
         log.info('Created ribbon tab: %s', tab_name)
 
@@ -192,7 +192,7 @@ def _build_ribbon(profile):
             aw_panel = AwRibbonPanel()
             panel_source = RibbonPanelSource()
             panel_source.Title = panel_name
-            panel_source.Id = 'RESTer_Panel_' + panel_name.replace(' ', '_')
+            panel_source.Id = 'REST_Panel_' + panel_name.replace(' ', '_')
             aw_panel.Source = panel_source
 
             # Apply panel color
@@ -248,7 +248,7 @@ def _create_tool_button(slot):
 
         btn = RibbonButton()
         btn.Text = name
-        btn.Id = 'RESTer_Btn_' + name.replace(' ', '_')
+        btn.Id = 'REST_Btn_' + name.replace(' ', '_')
         btn.ShowText = True
         btn.Size = RibbonItemSize.Large
 
@@ -288,7 +288,7 @@ def _create_stack_button(stack_name, stack_def):
     try:
         split = RibbonSplitButton()
         split.Text = stack_name
-        split.Id = 'RESTer_Stack_' + stack_name.replace(' ', '_')
+        split.Id = 'REST_Stack_' + stack_name.replace(' ', '_')
         split.Size = RibbonItemSize.Large
 
         try:
@@ -302,7 +302,7 @@ def _create_stack_button(stack_name, stack_def):
 
             child = RibbonButton()
             child.Text = tool_name
-            child.Id = 'RESTer_StackBtn_' + tool_name.replace(' ', '_')
+            child.Id = 'REST_StackBtn_' + tool_name.replace(' ', '_')
             child.ShowText = True
             child.Size = RibbonItemSize.Standard
 
@@ -388,7 +388,7 @@ def _make_command_handler(command_id):
 def _on_app_initialized(sender, args):
     """Called after Revit has fully loaded all addins and ribbon items."""
     try:
-        log.info('=== RESTer deferred build (ApplicationInitialized) ===')
+        log.info('=== REST deferred build (ApplicationInitialized) ===')
 
         active, profile = _load_active_profile()
         if not active or not profile:
@@ -418,7 +418,7 @@ def _on_app_initialized(sender, args):
         if _build_ribbon(profile):
             _update_last_built(active)
 
-        log.info('=== RESTer deferred build complete ===')
+        log.info('=== REST deferred build complete ===')
     except Exception as e:
         log.error('Deferred build failed: %s', e)
         import traceback
@@ -426,7 +426,7 @@ def _on_app_initialized(sender, args):
 
 
 # Register for ApplicationInitialized event
-log.info('=== RESTer startup hook - registering for ApplicationInitialized ===')
+log.info('=== REST startup hook - registering for ApplicationInitialized ===')
 try:
     __revit__.ControlledApplication.ApplicationInitialized += _on_app_initialized  # noqa: F821
     log.info('Registered ApplicationInitialized handler')

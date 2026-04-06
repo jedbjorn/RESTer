@@ -257,7 +257,7 @@ class ProfileSelectorAPI:
 
 
 if __name__ == '__main__':
-    log.info('=== RESTer Profile Selector starting ===')
+    log.info('=== REST Profile Selector starting ===')
     log.info('HTML path: %s', _html_path)
     log.info('Profiles dir: %s', _profiles_dir)
 
@@ -272,7 +272,7 @@ if __name__ == '__main__':
         wx, wy = None, None
 
     window = webview.create_window(
-        'RESTer - Profile Selector',
+        'REST - Profile Selector',
         url=_html_path,
         width=1350,
         height=900,
@@ -282,4 +282,4 @@ if __name__ == '__main__':
     )
     api.set_window(window)
     webview.start()
-    log.info('=== RESTer Profile Selector closed ===')
+    log.info('=== REST Profile Selector closed ===')

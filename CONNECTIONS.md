@@ -1,4 +1,4 @@
-# RESTer — Connections Map
+# REST — Connections Map
 
 > Keep this file up to date as files are added, renamed, or rewired.
 
@@ -6,7 +6,7 @@
 
 ## Overview
 
-RESTer is a two-part Revit toolbar profile system built on PyRevit.
+REST is a two-part Revit toolbar profile system built on PyRevit.
 
 | Component | Role | Runs |
 |-----------|------|------|
