@@ -38,12 +38,14 @@ try:
                 if os.path.exists(profile_path):
                     with io.open(profile_path, 'r', encoding='utf-8') as f:
                         profile = json.load(f)
-                    # Collect source tabs from all tools in the profile
+                    # Collect source tabs from tools + requiredAddins
                     for panel in profile.get('panels', []):
                         for slot in panel.get('slots', []):
                             st = slot.get('sourceTab')
                             if st:
                                 rst_source_tabs.add(st)
+                    for addin in profile.get('requiredAddins', []):
+                        rst_source_tabs.add(addin)
         except Exception as e:
             log.error('Error reading profile for source tabs: %s', e)
 
