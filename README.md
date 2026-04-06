@@ -70,6 +70,13 @@ Clean up your ribbon by hiding tabs you don't need:
 - RST tab is always protected — can't be hidden
 - Instant — no restart required
 
+### Update
+One-click update for the extension:
+- Pulls latest from GitHub
+- Auto-reloads pyRevit if changes found
+- Works with system git, pyRevit's bundled git, or common install paths
+- Shows "already up to date" if no changes
+
 ---
 
 ## Workflow
