@@ -53,19 +53,24 @@ def _scan_items(items, source_tab, results, depth=0):
             try:
                 cid = getattr(item, 'CommandId', None)
                 if cid is not None:
-                    cmd_str = str(cid)
+                    s = str(cid).strip()
+                    if s and s != 'None' and s != '---':
+                        cmd_str = s
             except Exception:
                 pass
 
+            # Fall back to Id (Kinship, some add-ins use Id instead of CommandId)
             if not cmd_str:
                 try:
                     iid = getattr(item, 'Id', None)
                     if iid is not None:
-                        cmd_str = str(iid)
+                        s = str(iid).strip()
+                        if s and s != 'None' and s != '---':
+                            cmd_str = s
                 except Exception:
                     pass
 
-            if not cmd_str or cmd_str == 'None' or 'RibbonListButton' in cmd_str:
+            if not cmd_str or 'RibbonListButton' in cmd_str:
                 continue
 
             # Get display name
