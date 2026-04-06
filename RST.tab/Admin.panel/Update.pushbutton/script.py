@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Update RST - pulls latest from git and reloads pyRevit."""
+"""Update RST - pulls latest using pyRevit's git and reloads."""
 import os
 import sys
-import subprocess
 
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 _root = os.path.join(_script_dir, '..', '..', '..')
@@ -12,97 +11,46 @@ sys.path.insert(0, os.path.join(_root, 'app'))
 from logger import get_logger
 log = get_logger('update')
 
-
-def find_git():
-    """Find git executable."""
-    # Try system git
-    try:
-        subprocess.check_output(['git', '--version'], stderr=subprocess.STDOUT)
-        return 'git'
-    except Exception:
-        pass
-
-    # Common install locations
-    candidates = [
-        r'C:\Program Files\Git\cmd\git.exe',
-        r'C:\Program Files\Git\bin\git.exe',
-        r'C:\Program Files (x86)\Git\cmd\git.exe',
-        r'C:\Program Files (x86)\Git\bin\git.exe',
-        os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Programs', 'Git', 'cmd', 'git.exe'),
-        os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Programs', 'Git', 'bin', 'git.exe'),
-    ]
-
-    # pyRevit may bundle git
-    pyrevit_git = os.path.join(os.environ.get('APPDATA', ''), 'pyRevit', 'bin', 'git.exe')
-    candidates.append(pyrevit_git)
-
-    for path in candidates:
-        if os.path.exists(path):
-            log.info('Found git at: %s', path)
-            return path
-
-    return None
-
-
 log.info('Updating RST...')
 
-git_cmd = find_git()
+try:
+    from pyrevit import versionmgr
+    from pyrevit.versionmgr import updater
+    from pyrevit import forms
 
-if not git_cmd:
-    log.error('Git not found')
-    # Try using pyRevit's extension manager as fallback
-    try:
-        from pyrevit import forms
+    # Get RST extension info
+    from pyrevit.extensions import extensionmgr
+    rst_ext = None
+    for ext in extensionmgr.get_installed_ui_extensions():
+        if 'RST' in str(ext.name) or 'REST' in str(ext.name):
+            rst_ext = ext
+            break
+
+    if rst_ext:
+        log.info('Found extension: %s at %s', rst_ext.name, rst_ext.directory)
+        has_update = updater.has_pending_updates(rst_ext)
+
+        if has_update:
+            log.info('Update available, pulling...')
+            updater.update_extension(rst_ext)
+            log.info('Updated, reloading pyRevit...')
+            from pyrevit.loader import sessionmgr
+            sessionmgr.reload()
+        else:
+            log.info('Already up to date')
+            forms.alert('RST is already up to date.', title='RST Update')
+    else:
+        log.warning('RST extension not found in pyRevit extension list')
         forms.alert(
-            'Git not found. To update RST:\n\n'
-            '1. Install Git for Windows from git-scm.com\n'
-            '2. Restart Revit\n'
-            '3. Click Update again\n\n'
-            'Or update manually via pyRevit Extensions Manager.',
+            'Could not find RST in pyRevit extensions.\n\n'
+            'Try updating via pyRevit Extensions Manager.',
             title='RST Update'
         )
+
+except Exception as e:
+    log.error('Update failed: %s', e)
+    try:
+        from pyrevit import forms
+        forms.alert('Update failed: ' + str(e), title='RST Update Error')
     except Exception:
         pass
-else:
-    try:
-        result = subprocess.check_output(
-            [git_cmd, 'pull'],
-            cwd=_root,
-            stderr=subprocess.STDOUT
-        )
-        result_str = result.decode('utf-8', errors='replace').strip()
-        log.info('Git pull: %s', result_str)
-
-        if 'Already up' in result_str:
-            try:
-                from pyrevit import forms
-                forms.alert('RST is already up to date.', title='RST Update')
-            except Exception:
-                pass
-        else:
-            log.info('Update found, reloading pyRevit...')
-            try:
-                from pyrevit.loader import sessionmgr
-                sessionmgr.reload()
-            except Exception as e:
-                log.error('Reload failed: %s', e)
-                try:
-                    from pyrevit import forms
-                    forms.alert('Updated. Please reload pyRevit manually.', title='RST Update')
-                except Exception:
-                    pass
-
-    except subprocess.CalledProcessError as e:
-        log.error('Git pull failed: %s', e)
-        try:
-            from pyrevit import forms
-            forms.alert('Update failed:\n\n' + str(e), title='RST Update Error')
-        except Exception:
-            pass
-    except Exception as e:
-        log.error('Update failed: %s', e)
-        try:
-            from pyrevit import forms
-            forms.alert('Update failed: ' + str(e), title='RST Update Error')
-        except Exception:
-            pass

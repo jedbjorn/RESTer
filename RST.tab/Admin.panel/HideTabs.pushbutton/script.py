@@ -55,13 +55,16 @@ try:
             title = str(tab.Title) if tab.Title else ''
             if not title:
                 continue
-            # Skip contextual tabs and duplicates
+            # Skip contextual tabs, duplicates, and non-project tabs
             is_contextual = False
             try:
                 is_contextual = bool(tab.IsContextualTab)
             except Exception:
                 pass
             if is_contextual:
+                continue
+            # Family Editor only appears in .rfa files, RST is .rvt only
+            if title in ('Family Editor', 'In-Place Model', 'In-Place Mass', 'Zone', 'Create'):
                 continue
             if title in seen_titles:
                 continue
