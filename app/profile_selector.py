@@ -283,14 +283,14 @@ if __name__ == '__main__':
         user32 = ctypes.windll.user32
         sw = user32.GetSystemMetrics(0)
         sh = user32.GetSystemMetrics(1)
-        wx, wy = (sw - 1350) // 2, (sh - 900) // 2
+        wx, wy = (sw - 1400) // 2, (sh - 900) // 2
     except Exception:
         wx, wy = None, None
 
     window = webview.create_window(
         'RST - Profile Selector',
         url=_html_path,
-        width=1400,
+        width=1450,
         height=900,
         x=wx,
         y=wy,
