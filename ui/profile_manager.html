@@ -1338,6 +1338,13 @@
                 <button class="hex-action-btn hex-save"  title="Save as favorite">+</button>
               </div>
             </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+              <span style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);flex-shrink:0">Opacity</span>
+              <input type="range" id="opacitySlider" min="10" max="100" value="100" step="5"
+                style="flex:1;accent-color:var(--accent);height:3px;cursor:pointer"
+                oninput="setOpacity(this.value)">
+              <span id="opacityVal" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text2);min-width:28px;text-align:right">100%</span>
+            </div>
           </div>
 
           <!-- Tools in Panel — half of remaining height -->
@@ -1444,6 +1451,7 @@
   const state = {
     currentProfile: 'New Profile',
     expandedStack:  null,   // name of the stack whose editor is open, or null
+    panelOpacity:   100,    // 10–100, applies to all panel background colors
     stacks: {},
     panels: {},
     // sourceTab: null  = native Revit command (no add-in to attribute)
@@ -1466,12 +1474,23 @@
     return m ? '#' + m.slice(0,3).map(n => parseInt(n).toString(16).padStart(2,'0')).join('') : '';
   }
 
+  function opacityFrac() { return state.panelOpacity / 100; }
+
+  function setOpacity(val) {
+    state.panelOpacity = parseInt(val, 10);
+    document.getElementById('opacityVal').textContent = val + '%';
+    if (state.currentPanel) applyColorToMock(state.panels[state.currentPanel].color);
+    renderMockPreview();
+    renderTabCanvas();
+  }
+
   function applyColorToMock(color) {
     const rgb = hexToRgb(color);
+    const a = opacityFrac();
     const h = document.getElementById('mockHead');
-    h.style.background = `rgba(${rgb},0.1)`;
+    h.style.background = `rgba(${rgb},${(0.1 * a).toFixed(2)})`;
     h.style.color = color;
-    h.style.borderBottomColor = `rgba(${rgb},0.2)`;
+    h.style.borderBottomColor = `rgba(${rgb},${(0.2 * a).toFixed(2)})`;
   }
 
   // ── LIVE PREVIEW ───────────────────────────────────────────────────────────
@@ -1486,11 +1505,14 @@
     tools.innerHTML = '';
     if (!state.currentPanel || !state.panels[state.currentPanel]) return;
     const panelColor = state.panels[state.currentPanel].color || '#4f8ef7';
+    const pRgb = hexToRgb(panelColor);
+    const a = opacityFrac();
+    const bgStyle = `rgba(${pRgb},${a.toFixed(2)})`;
     const textCol = contrastTextColor(panelColor);
     state.panels[state.currentPanel].slots.forEach(slot => {
       if (slot.type === 'tool') {
         tools.insertAdjacentHTML('beforeend',
-          `<div class="rib-btn" style="background:${panelColor};border-color:${panelColor}">
+          `<div class="rib-btn" style="background:${bgStyle};border-color:${bgStyle}">
              <div class="rib-icon" style="background:rgba(255,255,255,0.2);color:${textCol}">${slot.icon}</div>
              <div class="rib-label" style="color:${textCol}">${slot.baseName || slot.name}</div>
            </div>`);
@@ -1499,7 +1521,7 @@
         tools.insertAdjacentHTML('beforeend',
           `<div class="rib-stack">${stackTools.map(t => {
             const td = state.allTools.find(x => x.name === t) || { icon:'≡' };
-            return `<div class="rib-stack-item" style="background:${panelColor};border-color:${panelColor}">
+            return `<div class="rib-stack-item" style="background:${bgStyle};border-color:${bgStyle}">
               <div class="rib-stack-icon" style="background:rgba(255,255,255,0.2);color:${textCol}">${td.icon}</div>
               <div class="rib-stack-label" style="color:${textCol}">${t}</div>
             </div>`;
@@ -2067,6 +2089,7 @@
       tab:            tabName,
       min_version:    minVersion,
       exportDate:     date,
+      panelOpacity:   state.panelOpacity,
       requiredAddins: getDetectedAddins(),
       hideRules:      [],       // suppression handled by the loader, not TabCreator
       stacks:         stackDefs,
@@ -2337,13 +2360,16 @@
       return;
     }
 
+    const a = opacityFrac();
     canvas.innerHTML = active.map(([name, panel]) => {
       const isSelected = name === state.currentPanel;
       const pColor = panel.color || '#4f8ef7';
+      const pRgb = hexToRgb(pColor);
+      const bgStyle = `rgba(${pRgb},${a.toFixed(2)})`;
       const tCol = contrastTextColor(pColor);
       const toolsHtml  = panel.slots.slice(0, 4).map(slot => {
         if (slot.type === 'tool') {
-          return `<div class="rib-btn" style="width:50px;background:${pColor};border-color:${pColor}">
+          return `<div class="rib-btn" style="width:50px;background:${bgStyle};border-color:${bgStyle}">
             <div class="rib-icon" style="width:22px;height:22px;font-size:10px;background:rgba(255,255,255,0.2);color:${tCol}">${slot.icon || '?'}</div>
             <div class="rib-label" style="color:${tCol}">${slot.baseName || slot.name}</div>
           </div>`;
@@ -2352,7 +2378,7 @@
         return `<div class="rib-stack" style="width:54px">
           ${stackTools.slice(0, 3).map(t => {
             const td = state.allTools.find(x => x.name === t) || { icon: '≡' };
-            return `<div class="rib-stack-item" style="padding:3px 6px;background:${pColor};border-color:${pColor}">
+            return `<div class="rib-stack-item" style="padding:3px 6px;background:${bgStyle};border-color:${bgStyle}">
               <div class="rib-stack-icon" style="background:rgba(255,255,255,0.2);color:${tCol}">${td.icon}</div>
               <div class="rib-stack-label" style="color:${tCol}">${t}</div>
             </div>`;
@@ -2361,7 +2387,7 @@
       }).join('');
       return `<div class="tab-panel${isSelected ? ' sel' : ''}"
                    data-panel="${name}"
-                   style="background:${pColor}"
+                   style="background:${bgStyle}"
                    onclick="selectTabPanel(this,'${name}','${pColor}')">
         <div class="tab-panel-stripe" style="background:${pColor}"></div>
         <div class="tab-panel-inner">${toolsHtml}</div>
@@ -2600,6 +2626,11 @@
     // Set tab name
     document.getElementById('tabNameInput').value = profile.tab || '';
     document.getElementById('tabNameDisplay').textContent = profile.tab || 'New Tab';
+
+    // Restore opacity
+    state.panelOpacity = profile.panelOpacity != null ? profile.panelOpacity : 100;
+    document.getElementById('opacitySlider').value = state.panelOpacity;
+    document.getElementById('opacityVal').textContent = state.panelOpacity + '%';
 
     // Rebuild stacks
     state.stacks = {};

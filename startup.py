@@ -120,7 +120,7 @@ def _load_icon(icon_path):
     return None
 
 
-def _hex_to_color(hex_str):
+def _hex_to_color(hex_str, alpha=1.0):
     """Convert hex color string like '#4f8ef7' to a System.Windows.Media.Color."""
     try:
         import clr
@@ -130,13 +130,14 @@ def _hex_to_color(hex_str):
         r = int(hex_str[0:2], 16)
         g = int(hex_str[2:4], 16)
         b = int(hex_str[4:6], 16)
-        return Color.FromArgb(255, r, g, b)
+        a = int(max(0.0, min(1.0, alpha)) * 255)
+        return Color.FromArgb(a, r, g, b)
     except Exception as e:
         log.debug('Could not parse color %s: %s', hex_str, e)
         return None
 
 
-def _make_brush(hex_color):
+def _make_brush(hex_color, alpha=1.0):
     """Create a DrawingBrush that paints a rounded rectangle."""
     try:
         import clr
@@ -147,7 +148,7 @@ def _make_brush(hex_color):
         )
         from System.Windows import Rect
 
-        color = _hex_to_color(hex_color)
+        color = _hex_to_color(hex_color, alpha)
         if not color:
             return None
 
@@ -171,7 +172,7 @@ def _make_brush(hex_color):
         # Fallback to solid brush
         try:
             from System.Windows.Media import SolidColorBrush
-            color = _hex_to_color(hex_color)
+            color = _hex_to_color(hex_color, alpha)
             if color:
                 return SolidColorBrush(color)
         except Exception:
@@ -201,6 +202,7 @@ def _build_ribbon(profile):
     tab_name = profile.get('tab', 'RST')
     panels = profile.get('panels', [])
     stacks = profile.get('stacks', {})
+    panel_opacity = max(10, min(100, profile.get('panelOpacity', 100))) / 100.0
 
     log.info('Building ribbon tab: %s (%d panels)', tab_name, len(panels))
 
@@ -241,8 +243,8 @@ def _build_ribbon(profile):
             panel_source.Id = 'REST_Panel_' + panel_name.replace(' ', '_')
             aw_panel.Source = panel_source
 
-            # Apply panel color
-            brush = _make_brush(panel_color)
+            # Apply panel color with opacity
+            brush = _make_brush(panel_color, panel_opacity)
             if brush:
                 try:
                     aw_panel.CustomPanelBackground = brush
