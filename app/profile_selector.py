@@ -262,11 +262,22 @@ if __name__ == '__main__':
     log.info('Profiles dir: %s', _profiles_dir)
 
     api = ProfileSelectorAPI()
+    try:
+        import ctypes
+        user32 = ctypes.windll.user32
+        sw = user32.GetSystemMetrics(0)
+        sh = user32.GetSystemMetrics(1)
+        wx, wy = (sw - 1350) // 2, (sh - 900) // 2
+    except Exception:
+        wx, wy = None, None
+
     window = webview.create_window(
         'RESTer - Profile Selector',
         url=_html_path,
         width=1350,
-        height=850,
+        height=900,
+        x=wx,
+        y=wy,
         js_api=api
     )
     api.set_window(window)
