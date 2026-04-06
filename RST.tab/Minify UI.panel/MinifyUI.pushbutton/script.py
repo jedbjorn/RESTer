@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Minify UI — triggers pyRevit's MinifyUI toggle."""
-__title__ = 'Minify\nUI'
+__title__ = ' '
 __doc__ = 'Toggle pyRevit Minify UI to hide unused ribbon tabs and declutter the interface.'
 
 from Autodesk.Revit.UI import RevitCommandId

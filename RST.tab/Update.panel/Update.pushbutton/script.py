@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Update RST - downloads update, stages it, reloads pyRevit to unlock files,
 then a background script applies the update."""
-__title__ = 'Update\nRST'
+__title__ = ' '
 import io
 import os
 import sys

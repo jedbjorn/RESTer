@@ -573,11 +573,6 @@ def _style_rst_admin_panels():
                         if brush:
                             panel.CustomPanelBackground = brush
                             panel.CustomPanelTitleBarBackground = brush
-                        # Hide panel title label
-                        try:
-                            panel.Source.Title = ' '
-                        except Exception:
-                            pass
                         log.debug('Styled RST admin panel: %s', pid)
                     except Exception as e:
                         log.debug('Could not style panel: %s', e)
