@@ -169,6 +169,7 @@ def _make_brush(hex_color, alpha=1.0):
     try:
         import clr
         clr.AddReference('PresentationCore')
+        clr.AddReference('WindowsBase')
         from System.Windows.Media import (
             SolidColorBrush, DrawingBrush, GeometryDrawing,
             BrushMappingMode, TileMode, Stretch,
@@ -676,7 +677,14 @@ def _on_idling_style(sender, args):
 # Register for ApplicationInitialized event
 log.info('=== RST startup hook - registering for ApplicationInitialized ===')
 try:
-    __revit__.ControlledApplication.ApplicationInitialized += _on_app_initialized  # noqa: F821
+    # Try UIApplication.Application first (pyRevit gives us UIApplication)
+    app = getattr(__revit__, 'Application', None)  # noqa: F821
+    if app and hasattr(app, 'ApplicationInitialized'):
+        app.ApplicationInitialized += _on_app_initialized
+    elif hasattr(__revit__, 'ControlledApplication'):
+        __revit__.ControlledApplication.ApplicationInitialized += _on_app_initialized  # noqa: F821
+    else:
+        raise AttributeError('No ApplicationInitialized event found')
     log.info('Registered ApplicationInitialized handler')
 except Exception as e:
     log.warning('Could not register ApplicationInitialized: %s', e)
