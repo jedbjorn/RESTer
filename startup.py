@@ -404,6 +404,38 @@ def _make_command_handler(command_id):
         return None
 
 
+def _apply_hide_config():
+    """Apply saved hide tab config from hide_config.json."""
+    config_path = os.path.join(_root, 'app', 'hide_config.json')
+    if not os.path.exists(config_path):
+        return
+    try:
+        import clr
+        clr.AddReference('AdWindows')
+        from Autodesk.Windows import ComponentManager
+
+        with io.open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        hidden_tabs = set(config.get('hidden', []))
+        if not hidden_tabs:
+            return
+
+        ribbon = ComponentManager.Ribbon
+        for tab in ribbon.Tabs:
+            try:
+                title = str(tab.Title) if tab.Title else ''
+                if not title or title == 'RST' or title == 'File':
+                    continue
+                if title in hidden_tabs:
+                    tab.IsVisible = False
+                    log.debug('Hide config: hidden %s', title)
+            except Exception:
+                continue
+        log.info('Applied hide config: %d tabs hidden', len(hidden_tabs))
+    except Exception as e:
+        log.error('Failed to apply hide config: %s', e)
+
+
 # --- Main startup logic ---
 
 def _on_app_initialized(sender, args):
@@ -439,6 +471,9 @@ def _on_app_initialized(sender, args):
         if _build_ribbon(profile):
             _update_last_built(active)
 
+        # Apply saved hide config
+        _apply_hide_config()
+
         log.info('=== RST deferred build complete ===')
     except Exception as e:
         log.error('Deferred build failed: %s', e)
@@ -461,3 +496,4 @@ except Exception as e:
         if _needs_rebuild(active, profile_path):
             if _build_ribbon(profile):
                 _update_last_built(active)
+    _apply_hide_config()
