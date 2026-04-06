@@ -18,6 +18,20 @@ _html_path = os.path.join(_root, 'ui', 'profile_loader.html')
 REQUIRED_FIELDS = {'profile', 'tab', 'min_version', 'exportDate', 'requiredAddins', 'hideRules', 'stacks', 'panels'}
 
 
+def _write_blank_profile():
+    """Write a blank active profile so startup.py builds an empty RST tab."""
+    blank = {
+        'profile': None,
+        'profile_file': None,
+        'loaded_at': datetime.datetime.now().isoformat(),
+        'last_built': None,
+        'disable_non_required': False,
+        'blank': True,
+    }
+    with open(_active_profile_path, 'w', encoding='utf-8') as f:
+        json.dump(blank, f, indent=2)
+    log.info('Wrote blank active profile')
+
 
 os.makedirs(_profiles_dir, exist_ok=True)
 
@@ -214,14 +228,14 @@ class ProfileSelectorAPI:
         os.remove(os.path.join(_profiles_dir, profile_filename))
         log.info('Deleted: %s', profile_filename)
 
-        # Clear active if it was the active one
+        # Write blank profile if this was the active one
         try:
             if os.path.exists(_active_profile_path):
                 with open(_active_profile_path, 'r', encoding='utf-8') as f:
                     active = json.load(f)
                 if active.get('profile') == profile_name:
-                    os.remove(_active_profile_path)
-                    log.info('Cleared active_profile.json')
+                    _write_blank_profile()
+                    log.info('Wrote blank profile (deleted profile was active)')
         except (json.JSONDecodeError, IOError) as e:
             log.error('Error checking active profile: %s', e)
 
@@ -229,11 +243,7 @@ class ProfileSelectorAPI:
 
     def unload_profile(self):
         log.info('Unloading active profile')
-        if os.path.exists(_active_profile_path):
-            os.remove(_active_profile_path)
-            log.info('Deleted active_profile.json')
-        else:
-            log.debug('No active profile to unload')
+        _write_blank_profile()
         return {'ok': True}
 
     def restore_addins(self, revit_version):

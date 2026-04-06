@@ -1079,6 +1079,12 @@
     document.getElementById('successOverlay').classList.remove('visible');
   }
 
+  function showReloadPrompt(title, details) {
+    document.getElementById('successTitle').textContent = title;
+    document.getElementById('successDetail').innerHTML = details.map(function(l) { return '\u2022 ' + l; }).join('<br>');
+    document.getElementById('successOverlay').classList.add('visible');
+  }
+
   // ── RESTORE ADD-INS ───────────────────────────────────────────────────────────
   function restoreAllAddins() {
     // Allow restore even while Revit is running — changes take effect after restart
@@ -1105,8 +1111,9 @@
       activeProfileName = null;
       selectedProfile = null;
       renderCards();
-      const firstCard = document.querySelector('.profile-card');
+      var firstCard = document.querySelector('.profile-card');
       if (firstCard) firstCard.click();
+      showReloadPrompt('Profile Unloaded', ['A blank RST tab will replace the current one.']);
     }).catch(function(err) {
       alert('Error unloading profile: ' + (err.message || err));
     });
@@ -1138,6 +1145,9 @@
         renderCards();
         var firstCard = document.querySelector('.profile-card');
         if (firstCard) firstCard.click();
+        if (isLoaded) {
+          showReloadPrompt('Profile Deleted', ['A blank RST tab will replace the current one.']);
+        }
       }).catch(function(err) {
         alert('Error deleting profile: ' + (err.message || err));
       });

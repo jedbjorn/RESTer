@@ -37,6 +37,12 @@ def _load_active_profile():
         log.error('Failed to read active_profile.json: %s', e)
         return None, None
 
+    # Blank profile — build empty tab with just branding
+    if active.get('blank'):
+        log.info('Blank profile — will build empty RST tab')
+        blank_profile = {'tab': 'RST', 'panels': [], 'stacks': {}, 'panelOpacity': 100}
+        return active, blank_profile
+
     profile_file = active.get('profile_file')
     if not profile_file:
         log.debug('No profile_file in active_profile.json')
