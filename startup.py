@@ -260,29 +260,40 @@ def _build_ribbon(profile):
         ribbon.Tabs.Add(tab)
         log.info('Created ribbon tab: %s', tab_name)
 
-        # ── Branding panel (always leftmost) ──
+        # ── Branding panel (always leftmost, logo as panel background) ──
         try:
+            import clr
+            clr.AddReference('PresentationCore')
+            from System.Windows.Media.Imaging import BitmapImage, BitmapCacheOption
+            from System.Windows.Media import ImageBrush, Stretch as WpfStretch
+            from System import Uri, UriKind
+
             branding_panel = AwRibbonPanel()
             branding_source = RibbonPanelSource()
             branding_source.Title = ' '
             branding_source.Id = 'REST_Branding'
             branding_panel.Source = branding_source
 
-            # Create a RibbonButton but override its visual with a larger WPF Image
+            # Set branding.png as the panel background via ImageBrush
+            branding_icon_path = os.path.join(_icons_dir, 'branding.png')
+            if os.path.exists(branding_icon_path):
+                bmp = BitmapImage()
+                bmp.BeginInit()
+                bmp.UriSource = Uri(os.path.abspath(branding_icon_path), UriKind.Absolute)
+                bmp.CacheOption = BitmapCacheOption.OnLoad
+                bmp.EndInit()
+                img_brush = ImageBrush(bmp)
+                img_brush.Stretch = WpfStretch.Uniform
+                branding_panel.CustomPanelBackground = img_brush
+                log.debug('Set branding panel background from %s', branding_icon_path)
+
+            # Transparent button for click → GitHub link
             branding_btn = RibbonButton()
-            branding_btn.Text = ''
+            branding_btn.Text = ' '
             branding_btn.Id = 'REST_Branding_Btn'
             branding_btn.ShowText = False
             branding_btn.Size = RibbonItemSize.Large
 
-            # Load branding.png at 48x48 for the button image
-            branding_icon_path = os.path.join(_icons_dir, 'branding.png')
-            icon = _load_icon_sized(branding_icon_path, 48, 48)
-            if icon:
-                branding_btn.LargeImage = icon
-                branding_btn.Image = icon
-
-            # Click opens GitHub
             branding_handler = _make_url_handler('https://github.com/jedbjorn/RST')
             if branding_handler:
                 branding_btn.CommandHandler = branding_handler
