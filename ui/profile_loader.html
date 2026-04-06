@@ -1039,14 +1039,9 @@
         alert('Failed to load profile.');
         return;
       }
-      var msg = 'Profile loaded successfully.';
-      if (revitRunning) {
-        msg += '\n\nReload pyRevit to apply the new tab. Add-in changes take effect after Revit restart.';
-      }
       if (result.warnings && result.warnings.length > 0) {
-        msg += '\n\nWarnings:\n' + result.warnings.join('\n');
+        alert('Profile loaded with warnings:\n\n' + result.warnings.join('\n'));
       }
-      alert(msg);
       activeProfileName = selectedProfile.profile;
       renderCards();
       const idx  = profiles.findIndex(p => p.profile === activeProfileName);
