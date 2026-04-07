@@ -411,6 +411,7 @@ def _create_stack_buttons(stack_name, stack_def):
             btn.Text = tool_name
             btn.Id = 'REST_StackBtn_' + full_name.replace(' ', '_')
             btn.ShowText = True
+            btn.ShowImage = False
             btn.Size = RibbonItemSize.Standard
 
             # Tooltip with source info
@@ -425,11 +426,6 @@ def _create_stack_buttons(stack_name, stack_def):
                 btn.ToolTip = tip
             except Exception:
                 pass
-
-            # 16x16 icon for stack items
-            icon = _load_icon(_get_icon_path(tool, small=True))
-            if icon:
-                btn.Image = icon
 
             if command_id:
                 if command_id.startswith('URL:'):
