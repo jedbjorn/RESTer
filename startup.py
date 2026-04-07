@@ -598,7 +598,6 @@ def _style_rst_admin_panels():
 
 
 _idling_style_pending = [False]
-_profile_loaded = [False]
 
 def _schedule_admin_styling():
     """Schedule _style_rst_admin_panels to run on the next Idling event,
@@ -611,50 +610,8 @@ def _schedule_admin_styling():
         log.warning('Could not schedule Idling: %s — styling now', e)
         _style_rst_admin_panels()
 
-def _activate_minifyui():
-    """Activate MinifyUI if a profile is loaded — hides tabs from the config."""
-    try:
-        from pyrevit.coreutils import ribbon
-        from pyrevit.userconfig import user_config
-
-        # MinifyUI stores hidden_tabs in pyRevit's user config
-        # under the section keyed by its script component unique ID.
-        # Search all config sections for one with a hidden_tabs key.
-        hidden_tabs = None
-        for section in user_config:
-            try:
-                val = user_config.get_section(section).get_option('hidden_tabs', None)
-                if val is not None:
-                    hidden_tabs = val
-                    break
-            except Exception:
-                continue
-
-        if not hidden_tabs:
-            log.debug('MinifyUI: no hidden_tabs configured')
-            return
-
-        # Set the env var so MinifyUI's toggle icon stays in sync
-        try:
-            from pyrevit import script as pyscript
-            pyscript.set_envvar('MINIFYUIACTIVE', True)
-        except Exception:
-            pass
-
-        # Hide the tabs
-        count = 0
-        for tab in ribbon.get_current_ui():
-            if tab.name in hidden_tabs:
-                tab.visible = False
-                count += 1
-
-        log.info('MinifyUI activated: hiding %d tabs', count)
-    except Exception as e:
-        log.debug('Could not activate MinifyUI: %s', e)
-
-
 def _on_idling_style(sender, args):
-    """Runs once on first Idling event, styles admin panels and activates MinifyUI."""
+    """Runs once on first Idling event, styles admin panels."""
     if not _idling_style_pending[0]:
         return
     _idling_style_pending[0] = False
@@ -666,11 +623,6 @@ def _on_idling_style(sender, args):
         _style_rst_admin_panels()
     except Exception as e:
         log.warning('Idling styling failed: %s', e)
-    if _profile_loaded[0]:
-        try:
-            _activate_minifyui()
-        except Exception as e:
-            log.warning('MinifyUI activation failed: %s', e)
 
 
 # Always build immediately — ApplicationInitialized only fires on initial
@@ -681,7 +633,6 @@ active, profile = _load_active_profile()
 if active and profile:
     log.info('Active profile: %s', active.get('profile'))
     _build_ribbon(profile)
-    _profile_loaded[0] = True
 else:
     log.info('No active profile — nothing to build')
 _schedule_admin_styling()
