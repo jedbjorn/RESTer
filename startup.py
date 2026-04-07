@@ -387,7 +387,7 @@ def _create_tool_button(slot):
 
         # Style URL tools with arrow prefix and link color
         if is_url:
-            url_name = u'\u279A ' + display_name
+            url_name = u'\U0001F310 ' + display_name
             btn.Text = url_name.replace(' ', '\n', 1) if ' ' in url_name else url_name
             try:
                 import clr
@@ -451,7 +451,7 @@ def _create_stack_buttons(stack_name, stack_def):
 
             # Style URL tools with arrow prefix and link color
             if is_url:
-                btn.Text = u'\u279A ' + tool_name + ' '
+                btn.Text = u'\U0001F310 ' + tool_name + ' '
                 try:
                     import clr
                     clr.AddReference('PresentationCore')
