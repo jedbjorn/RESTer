@@ -39,9 +39,6 @@ sys.path.insert(0, os.path.join(_root, 'app'))
 from addin_scanner import (
     BUILTIN_TABS,
     load_addin_lookup,
-    apply_hide_rules,
-    restore_all_addins,
-    disable_non_required_addins,
 )
 
 # Load session data written by the IronPython pushbutton
@@ -226,16 +223,6 @@ class ProfileSelectorAPI:
                     if not found:
                         warnings.append('Required add-in not loaded: ' + tab_name)
 
-            # Apply hide rules and disable non-required (wrapped for safety)
-            try:
-                apply_hide_rules(profile_data.get('hideRules', []), revit_version)
-                if disable_non_required:
-                    disable_non_required_addins(
-                        profile_data.get('requiredAddins', []), revit_version
-                    )
-            except Exception as e:
-                log.error('Addin operation failed: %s', e)
-                warnings.append('Add-in operation failed: ' + str(e))
 
         # Write active_profile.json
         active = {
@@ -287,14 +274,6 @@ class ProfileSelectorAPI:
         window = self._window or (webview.windows[0] if webview.windows else None)
         if window:
             window.destroy()
-
-    def restore_addins(self, revit_version=None):
-        ver = revit_version or self._revit_version
-        log.info('Restoring addins for Revit %s', ver)
-        if not ver:
-            return {'ok': False, 'error': 'No Revit version available'}
-        restore_all_addins(ver)
-        return {'ok': True}
 
 
 if __name__ == '__main__':

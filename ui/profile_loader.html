@@ -467,18 +467,6 @@
   }
 
   /* ── HIDE RULES ── */
-  .hide-rules-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-
-  .hide-rule-chip {
-    font-family: 'DM Mono', monospace;
-    font-size: 9px;
-    padding: 3px 9px;
-    border-radius: 3px;
-    background: rgba(245,158,11,0.07);
-    border: 1px solid rgba(245,158,11,0.2);
-    color: var(--warn);
-    letter-spacing: 0.04em;
-  }
 
   /* ── FOOTER ── */
   .detail-footer {
@@ -494,13 +482,6 @@
     display: flex;
     align-items: center;
     gap: 10px;
-  }
-  .detail-footer-center {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    flex: 1;
   }
 
   .unload-btn {
@@ -552,39 +533,6 @@
   }
   .load-btn:hover { background: var(--accent3); color: #0f1117; border-color: var(--accent3); }
 
-  /* ── TOGGLE ── */
-  .toggle-label {
-    display: flex; align-items: center; gap: 9px;
-    cursor: pointer; user-select: none;
-    font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.04em;
-    color: var(--text3); white-space: nowrap; transition: color 0.15s;
-  }
-  .toggle-label:hover { color: var(--text2); }
-
-  .toggle-switch { position: relative; width: 30px; height: 17px; flex-shrink: 0; }
-  .toggle-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
-  .toggle-track {
-    position: absolute; inset: 0; border-radius: 9px;
-    background: var(--surface3); border: 1px solid var(--border2);
-    transition: background 0.2s, border-color 0.2s; cursor: pointer;
-  }
-  .toggle-thumb {
-    position: absolute; top: 2px; left: 2px; width: 11px; height: 11px;
-    border-radius: 50%; background: var(--text3); transition: transform 0.2s, background 0.2s;
-  }
-  .toggle-switch input:checked + .toggle-track {
-    background: rgba(16,185,129,0.18); border-color: rgba(16,185,129,0.45);
-  }
-  .toggle-switch input:checked + .toggle-track .toggle-thumb {
-    transform: translateX(13px); background: var(--accent3);
-  }
-
-  .restore-btn {
-    font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
-    padding: 7px 13px; border-radius: 4px; background: transparent; border: 1px solid var(--border);
-    color: var(--text3); cursor: pointer; transition: all 0.15s; white-space: nowrap;
-  }
-  .restore-btn:hover { border-color: var(--accent3); color: var(--accent3); background: rgba(16,185,129,0.06); }
 
   /* ── LOADING OVERLAY ── */
   .loading-overlay {
@@ -674,11 +622,6 @@
       <!-- Required Add-ins -->
       <div id="detailAddins" style="display:none"></div>
 
-      <!-- Suppressed Add-in Tabs -->
-      <div id="detailHideRules" style="display:none">
-        <div class="detail-section-label">Suppressed Add-in Tabs</div>
-        <div class="hide-rules-chips" id="hideRulesChips"></div>
-      </div>
 
     </div>
 
@@ -686,18 +629,6 @@
       <div class="detail-footer-left">
         <button class="unload-btn" onclick="unloadProfile()">Unload Profile</button>
         <button class="delete-btn" onclick="confirmRemove()">Delete Profile</button>
-      </div>
-      <div class="detail-footer-center">
-        <div style="display:flex;align-items:center;gap:10px">
-          <button class="restore-btn" onclick="restoreAllAddins()">&#8634; Restore Add-ins</button>
-          <label class="toggle-label">
-            <div class="toggle-switch">
-              <input type="checkbox" id="disableAddinsCheck">
-              <div class="toggle-track"><div class="toggle-thumb"></div></div>
-            </div>
-            Disable non-required add-ins on load
-          </label>
-        </div>
       </div>
       <button class="load-btn" id="loadBtn" onclick="loadProfile()">Load Profile →</button>
     </div>
@@ -862,7 +793,6 @@
     document.getElementById('detailMeta').innerHTML = '';
     document.getElementById('tabCanvas').innerHTML = '';
     document.getElementById('detailAddins').style.display = 'none';
-    document.getElementById('detailHideRules').style.display = 'none';
   }
 
   function selectCard(el, idx) {
@@ -915,16 +845,6 @@
       addinsContainer.style.display = 'none';
     }
 
-    // Suppressed add-in tabs (hideRules)
-    const hideContainer = document.getElementById('detailHideRules');
-    if (profile.hideRules && profile.hideRules.length > 0) {
-      hideContainer.style.display = 'block';
-      document.getElementById('hideRulesChips').innerHTML = profile.hideRules.map(rule =>
-        `<span class="hide-rule-chip">✕ ${rule}</span>`
-      ).join('');
-    } else {
-      hideContainer.style.display = 'none';
-    }
 
   }
 
@@ -979,9 +899,8 @@
 
   function loadProfile() {
     if (!selectedProfile) return;
-    var disableNonRequired = document.getElementById('disableAddinsCheck').checked;
 
-    window.pywebview.api.load_profile(selectedProfile.profile, disableNonRequired, currentRevitVersion).then(function(result) {
+    window.pywebview.api.load_profile(selectedProfile.profile, false, currentRevitVersion).then(function(result) {
       if (!result.ok) {
         alert('Failed to load profile.');
         return;
@@ -990,8 +909,6 @@
 
       var lines = [];
       lines.push('Tab \u201c' + selectedProfile.tab + '\u201d will build on next pyRevit reload.');
-      if (disableNonRequired) lines.push('Non-required add-ins disabled.');
-      if (selectedProfile.hideRules && selectedProfile.hideRules.length) lines.push('Suppressed tabs: ' + selectedProfile.hideRules.join(', '));
       if (result.warnings && result.warnings.length > 0) {
         result.warnings.forEach(function(w) { lines.push(w); });
       }
@@ -1002,18 +919,6 @@
     });
   }
 
-  // ── RESTORE ADD-INS ───────────────────────────────────────────────────────────
-  function restoreAllAddins() {
-    window.pywebview.api.restore_addins().then(function(result) {
-      if (result && !result.ok) {
-        alert(result.error || 'Failed to restore add-ins.');
-      } else {
-        alert('All add-ins restored successfully.');
-      }
-    }).catch(function(err) {
-      alert('Error restoring add-ins: ' + (err.message || err));
-    });
-  }
 
   // ── UNLOAD PROFILE ────────────────────────────────────────────────────────────
   // Removes active_profile.json so Revit no longer loads this profile,

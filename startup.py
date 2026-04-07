@@ -363,13 +363,6 @@ def _create_tool_button(slot):
         except Exception:
             pass
 
-        # Text below icon
-        try:
-            from System.Windows.Controls import Orientation
-            btn.Orientation = Orientation.Vertical
-        except Exception as e:
-            log.debug('Could not set orientation for %s: %s', display_name, e)
-
         # 32x32 icon
         icon = _load_icon(_get_icon_path(slot, small=False))
         if icon:
