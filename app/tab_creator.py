@@ -21,6 +21,7 @@ _profiles_dir = os.path.join(_root, 'app', 'profiles')
 _icons_dir = os.path.join(_root, 'icons')
 _revit_data_path = os.path.join(_root, 'app', '_revit_data.json')
 _addin_lookup_path = os.path.join(_root, 'lookup', 'addin_lookup.json')
+_custom_tools_path = os.path.join(_root, 'app', 'custom_tools.json')
 
 os.makedirs(_profiles_dir, exist_ok=True)
 os.makedirs(_icons_dir, exist_ok=True)
@@ -133,6 +134,29 @@ class TabCreatorAPI:
         addins = _revit_data.get('loaded_addins', [])
         log.info('Returning %d loaded add-ins', len(addins))
         return addins
+
+    def get_custom_tools(self):
+        if not os.path.exists(_custom_tools_path):
+            return []
+        try:
+            with open(_custom_tools_path, 'r', encoding='utf-8') as f:
+                tools = json.load(f)
+            log.info('Loaded %d custom tools', len(tools))
+            return tools
+        except (json.JSONDecodeError, IOError) as e:
+            log.error('Failed to load custom tools: %s', e)
+            return []
+
+    def save_custom_tools(self, json_str):
+        try:
+            tools = json.loads(json_str)
+            with open(_custom_tools_path, 'w', encoding='utf-8') as f:
+                json.dump(tools, f, indent=2)
+            log.info('Saved %d custom tools', len(tools))
+            return {'ok': True}
+        except Exception as e:
+            log.error('Failed to save custom tools: %s', e)
+            return {'ok': False, 'error': str(e)}
 
     def save_export(self, json_str):
         log.info('Exporting profile')

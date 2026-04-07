@@ -1874,6 +1874,14 @@
   }
 
   // ── CUSTOM URL TOOLS ──────────────────────────────────────────────────────
+  // ── PERSIST CUSTOM TOOLS ────────────────────────────────────────────────
+  function persistCustomTools() {
+    var custom = state.allTools.filter(function(t) { return t.sourceTab === 'Custom'; });
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.save_custom_tools) {
+      window.pywebview.api.save_custom_tools(JSON.stringify(custom)).catch(function() {});
+    }
+  }
+
   function promptAddUrl() {
     var overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,17,23,0.85);display:flex;align-items:center;justify-content:center;z-index:1000';
@@ -1905,6 +1913,7 @@
       sourcePanel: null,
       commandId: 'URL:' + url,
     });
+    persistCustomTools();
     renderToolList();
   }
 
@@ -1952,6 +1961,7 @@
       });
     });
 
+    persistCustomTools();
     renderToolList();
     renderSlotList();
     renderMockPreview();
@@ -1969,6 +1979,7 @@
         return !(s.type === 'tool' && s.name === name);
       });
     });
+    persistCustomTools();
     renderToolList();
     renderSlotList();
     renderMockPreview();
@@ -3038,6 +3049,21 @@
         const profiles = await window.pywebview.api.get_profiles();
         if (Array.isArray(profiles)) {
           populateProfileDropdown(profiles);
+        }
+      }
+    } catch(e) { /* ignore */ }
+
+    try {
+      // Load persistent custom URL tools
+      if (window.pywebview && window.pywebview.api && window.pywebview.api.get_custom_tools) {
+        const custom = await window.pywebview.api.get_custom_tools();
+        if (Array.isArray(custom)) {
+          custom.forEach(function(ct) {
+            if (!state.allTools.find(function(t) { return t.commandId === ct.commandId && t.sourceTab === 'Custom'; })) {
+              state.allTools.push(ct);
+            }
+          });
+          renderToolList();
         }
       }
     } catch(e) { /* ignore */ }

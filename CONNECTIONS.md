@@ -8,151 +8,202 @@
 
 RST is a two-part Revit toolbar profile system built on PyRevit.
 
-| Component | Role | Runs |
-|-----------|------|------|
-| **TabCreator** (`profile_manager.html`) | Admin builds/edits toolbar profiles | Inside Revit (pywebview via PyRevit button) |
-| **ProfileSelector** (`profile_loader.html`) | End user loads a profile and toggles add-ins | Outside Revit (standalone pywebview via `.bat` / `.exe`) |
-| **startup.py** | Reads active profile and builds the Revit ribbon tab | On every Revit launch (PyRevit startup hook) |
+| Component | Role | Runtime |
+|-----------|------|---------|
+| **TabCreator** (`profile_manager.html`) | Admin builds/edits toolbar profiles | CPython 3.12 + pywebview, launched from Revit via pushbutton |
+| **ProfileSelector** (`profile_loader.html`) | User loads a profile and toggles add-ins | CPython 3.12 + pywebview, launched from Revit or standalone `.bat` |
+| **startup.py** | Reads active profile, builds ribbon, activates MinifyUI | IronPython, runs on every Revit launch / pyRevit reload |
 
 ---
 
 ## Logging
 
-All backend activity is logged to `rst.log` at the extension root. Shared logger via `app/logger.py` — modules call `get_logger('module_name')`. Log includes timestamps, severity, module, and message.
+All backend activity is logged to `rst.log` at the extension root. Shared logger via `app/logger.py` — modules call `get_logger('module_name')`. Log truncates at 512KB and starts fresh. Includes timestamps, severity, module, and message.
 
 ---
 
 ## Install Path
 
 ```
-%APPDATA%\pyRevit\Extensions\RESTer.extension\
+%APPDATA%\pyRevit\Extensions\RST.extension\
 ```
 
-Install via pyRevit Extension Manager using the GitHub repo URL. pyRevit clones the repo and appends `.extension` to the folder name automatically.
+Install via pyRevit Extension Manager using `https://github.com/jedbjorn/RST`. pyRevit clones the repo and appends `.extension` to the folder name automatically.
 
 ---
 
 ## Repository Structure
 
 ```
-RESTer/                                     ← repo root & install root
+RST/                                        ← repo root & install root
 ├── .gitignore
 ├── CONNECTIONS.md                          ← this file
+├── README.md
 ├── extension.json                          ← PyRevit extension manifest
-├── startup.py                              ← PyRevit startup hook — builds ribbon tab
+├── startup.py                              ← PyRevit startup hook
 ├── launch_profile_loader.bat               ← Standalone launcher for ProfileSelector
 │
-├── RST.tab/
-│   └── Admin.panel/
-│       ├── _layout                         ← Button ordering
-│       ├── TabCreator.pushbutton/
-│       │   ├── script.py                   ← Opens profile_manager.html in pywebview inside Revit
-│       │   └── icon.png                    ← Button icon (32x32)
-│       ├── ProfileLoader.pushbutton/
-│       │   ├── script.py                   ← Launches profile_loader.html standalone
-│       │   └── icon.png
-│       ├── Update.pushbutton/
-│       │   ├── script.py                   ← Git pull / zip download + pyRevit reload
-│       │   └── icon.png
-│       └── MinifyUI.pushbutton/
-│           └── script.py                   ← Toggles pyRevit MinifyUI
+├── RST.tab/                                ← PyRevit ribbon tab
+│   ├── bundle.yaml                         ← Panel layout order
+│   ├── Profiler.panel/
+│   │   └── TabCreator.pushbutton/
+│   │       ├── script.py                   ← Scans ribbon + loaded addins, writes _revit_data.json, launches tab_creator.py
+│   │       └── icon.png
+│   ├── Loader.panel/
+│   │   └── ProfileLoader.pushbutton/
+│   │       ├── script.py                   ← Writes _loader_data.json, launches profile_selector.py, reloads pyRevit on change
+│   │       └── icon.png
+│   ├── Minify.panel/
+│   │   └── MinifyUI.pushbutton/
+│   │       ├── script.py                   ← Toggles pyRevit MinifyUI
+│   │       └── icon.png
+│   ├── Update.panel/
+│   │   └── Update.pushbutton/
+│   │       ├── script.py                   ← Git pull / zip download + animated reload
+│   │       └── icon.png
+│   └── Reload.panel/
+│       └── Reload.pushbutton/
+│           ├── script.py                   ← Triggers pyRevit reload
+│           └── icon.png
 │
 ├── app/
-│   ├── logger.py                           ← Shared logger → rst.log
+│   ├── logger.py                           ← Shared logger → rst.log (512KB cap)
+│   ├── reload_ui.py                        ← WPF animated reload message (IronPython)
 │   ├── tab_creator.py                      ← TabCreator pywebview backend (TabCreatorAPI)
 │   ├── profile_selector.py                 ← ProfileSelector pywebview backend (ProfileSelectorAPI)
-│   ├── addin_scanner.py                    ← Addin presence check, suppression, restore
-│   ├── active_profile.json                 ← Written by ProfileSelector, read by startup.py
-│   └── profiles/                           ← Profile JSON files (source of truth)
+│   ├── addin_scanner.py                    ← Addin suppression and restore (filesystem ops)
+│   ├── active_profile.json                 ← Written by ProfileSelector, read by startup.py (gitignored)
+│   ├── _revit_data.json                    ← Temp: Revit session data for TabCreator (gitignored)
+│   ├── _loader_data.json                   ← Temp: Revit session data for ProfileSelector (gitignored)
+│   └── profiles/                           ← Profile JSON files
 │       └── (*.json)
 │
-├── icons/                                  ← Custom tool icons ({toolName}.png)
-│   ├── RESTer_default.png                  ← Default icon for ribbon buttons (32x32)
+├── icons/
+│   ├── RESTer_default.png                  ← Default ribbon button icon (32x32)
 │   ├── RESTer_default_16.png               ← 16x16 variant for stack items
-│   └── branding.png                        ← Branding panel logo (32x32, replaceable)
+│   ├── branding.png                        ← Branding panel logo (replaceable)
+│   ├── icon_creator.png                    ← Profiler button icon
+│   ├── icon_loader.png                     ← Loader button icon
+│   ├── icon_minify.png                     ← Minify button icon
+│   ├── icon_reload.png                     ← Reload button icon
+│   └── icon_update.png                     ← Update button icon
 │
 ├── ui/
-│   ├── profile_manager.html                ← TabCreator UI (wired to pywebview)
-│   └── profile_loader.html                 ← ProfileSelector UI (wired to pywebview)
+│   ├── profile_manager.html                ← TabCreator UI
+│   └── profile_loader.html                 ← ProfileSelector UI
 │
 ├── lookup/
-│   └── addin_lookup.json                   ← Canonical addin-to-file mapping
+│   ├── addin_lookup.json                   ← Single source: tab name → .addin file mapping
+│   └── config.json                         ← Protected addins + exempt paths (user-editable)
 │
 └── spec/
-    ├── HANDOFF.md                          ← Build spec (authoritative for backend)
-    └── addin_lookup.json                   ← Canonical copy (keep in sync with lookup/)
+    ├── HANDOFF.md                          ← Original build spec
+    └── spec                                ← Additional spec
 ```
 
 ---
 
-## File Connections
+## Data Flow
+
+### IronPython → CPython (session data handoff)
+
+Both pushbutton scripts collect live Revit session data and pass it to CPython via temp JSON files:
+
+| Pushbutton | Writes | Contains | Read by |
+|------------|--------|----------|---------|
+| TabCreator `script.py` | `app/_revit_data.json` | `revit_version`, `commands` (1400+), `loaded_addins` | `tab_creator.py` |
+| ProfileLoader `script.py` | `app/_loader_data.json` | `revit_version`, `loaded_addins` | `profile_selector.py` |
+
+Temp files are deleted after reading. The `loaded_addins` array comes from `__revit__.Application.LoadedApplications` — each entry has `name`, `addinId`, and `assembly` path.
 
 ### UI → Python Backend (pywebview JS bridge)
 
-**profile_manager.html** calls these Python methods via `window.pywebview.api.*`:
+**profile_manager.html** → `TabCreatorAPI`:
 
-| JS Call | Python Class | Method | Purpose |
-|---------|-------------|--------|---------|
-| `get_revit_version()` | `TabCreatorAPI` | `get_revit_version()` | Read active Revit version |
-| `get_installed_commands()` | `TabCreatorAPI` | `get_installed_commands()` | Walk Revit ribbon via AdWindows.dll |
-| `save_export(json_str)` | `TabCreatorAPI` | `save_export(json_str)` | Save to `app/profiles/` + Desktop copy |
-| `pick_icon(tool_name)` | `TabCreatorAPI` | `pick_icon(tool_name)` | File dialog → copy PNG to `icons/{toolName}.png` |
-| `load_profile_into_editor(name)` | `TabCreatorAPI` | `load_profile_into_editor(name)` | Read profile from `app/profiles/` |
-| `get_profiles()` | `TabCreatorAPI` | `get_profiles()` | List available profiles for dropdown |
-| `open_profiles_folder()` | `TabCreatorAPI` | `open_profiles_folder()` | Open `app/profiles/` in Explorer |
+| JS Call | Purpose |
+|---------|---------|
+| `get_revit_version()` | Active Revit version from session |
+| `get_installed_commands()` | All ribbon commands from AdWindows scan |
+| `get_loaded_addins()` | Add-ins loaded in current Revit session |
+| `get_addin_lookup()` | Read `lookup/addin_lookup.json` |
+| `get_profiles()` | List saved profile names |
+| `save_export(json_str)` | Save to `app/profiles/` + Desktop copy |
+| `pick_icon(tool_name)` | File dialog → copy PNG to `icons/` |
+| `pick_branding_logo()` | File dialog → resize to 48x48 → `icons/branding.png` |
+| `load_profile_into_editor(name)` | Load profile for editing (copies if active) |
+| `open_profiles_folder()` | Open `app/profiles/` in Explorer |
 
-**profile_loader.html** calls these Python methods via `window.pywebview.api.*`:
+**profile_loader.html** → `ProfileSelectorAPI`:
 
-| JS Call | Python Class | Method | Purpose |
-|---------|-------------|--------|---------|
-| `get_profiles()` | `ProfileSelectorAPI` | `get_profiles()` | Read all profiles from `app/profiles/` |
-| `get_active_profile()` | `ProfileSelectorAPI` | `get_active_profile()` | Read `app/active_profile.json` |
-| `get_revit_versions()` | `ProfileSelectorAPI` | `get_revit_versions()` | Scan `%APPDATA%\Autodesk\Revit\Addins\` for year dirs |
-| `add_profile()` | `ProfileSelectorAPI` | `add_profile()` | File dialog → validate → copy to `app/profiles/` |
-| `load_profile(name, disable, version)` | `ProfileSelectorAPI` | `load_profile(name, disable, version)` | Write `active_profile.json`, apply hideRules |
-| `remove_profile(name)` | `ProfileSelectorAPI` | `remove_profile(name)` | Delete from `app/profiles/` |
-| `restore_addins(version)` | `ProfileSelectorAPI` | `restore_addins(version)` | Rename `.addin.inactive` → `.addin` |
+| JS Call | Purpose |
+|---------|---------|
+| `get_revit_version()` | Active Revit version from session |
+| `get_loaded_addins()` | Add-ins loaded in current Revit session |
+| `get_addin_lookup()` | Read `lookup/addin_lookup.json` |
+| `get_profiles()` | Read all profiles from `app/profiles/` |
+| `get_active_profile()` | Read `app/active_profile.json` |
+| `add_profile()` | File dialog → validate → copy to `app/profiles/` |
+| `load_profile(name, disable, version)` | Write `active_profile.json`, apply hide rules |
+| `remove_profile(name)` | Delete from `app/profiles/` |
+| `unload_profile()` | Write blank `active_profile.json` |
+| `restore_addins()` | Rename `.addin.inactive` → `.addin` |
 
 ### Python → External Systems
 
 | Python File | Reads | Writes | External |
 |-------------|-------|--------|----------|
-| `startup.py` | `app/active_profile.json`, `app/profiles/*.json`, `icons/*.png` | `app/active_profile.json` (last_built) | Revit API (ribbon via AdWindows.dll) |
-| `script.py` | `app/profiles/*.json`, `icons/` | `app/profiles/`, Desktop copy, `icons/` | pywebview (launches profile_manager.html) |
-| `profile_selector.py` | `app/profiles/*.json`, `app/active_profile.json` | `app/active_profile.json`, `app/profiles/` | pywebview (launches profile_loader.html) |
-| `addin_scanner.py` | `lookup/addin_lookup.json`, `%APPDATA%\...\Addins\{ver}\` | `.addin` ↔ `.addin.inactive` renames | Filesystem |
+| `startup.py` | `active_profile.json`, `profiles/*.json`, `icons/` | — | Revit ribbon (AdWindows), MinifyUI (pyRevit config) |
+| `TabCreator script.py` | Revit ribbon (AdWindows), `LoadedApplications` | `_revit_data.json` | Launches `tab_creator.py` |
+| `ProfileLoader script.py` | `active_profile.json`, `LoadedApplications` | `_loader_data.json` | Launches `profile_selector.py` |
+| `tab_creator.py` | `_revit_data.json`, `profiles/`, `addin_lookup.json` | `profiles/`, `icons/`, Desktop copy | pywebview |
+| `profile_selector.py` | `_loader_data.json`, `profiles/`, `active_profile.json`, `addin_lookup.json` | `active_profile.json`, `profiles/` | pywebview |
+| `addin_scanner.py` | `addin_lookup.json`, `config.json`, `%APPDATA%\...\Addins\` | `.addin` ↔ `.addin.inactive` | Filesystem |
+| `reload_ui.py` | — | — | WPF window + pyRevit `sessionmgr.reload()` |
 | `logger.py` | — | `rst.log` | — |
-
-### Data Flow
-
-```
-TabCreator (admin)                    ProfileSelector (user)
-      │                                      │
-      │ save_export()                        │ add_profile()
-      ▼                                      ▼
-  app/profiles/*.json  ◄───�� file sent ────  (user's Desktop)
-      │                                      │
-      │                                      │ load_profile()
-      │                                      ▼
-      │                               active_profile.json
-      │                                      │
-      │                               addin_scanner.py
-      │                                      │
-      │                               .addin ↔ .addin.inactive
-      │                                      
-      └──────────► startup.py ──────► Revit ribbon tab
-                   (on Revit launch)
-```
 
 ---
 
-## Protected Add-ins
+## Startup Sequence
 
-**pyRevit** (`pyRevit.addin`) is always protected. The backend must never disable or rename it. Enforced in:
-- `disable_non_required_addins()` — always keeps `pyRevit.addin`
-- `restore_all_addins()` — skips `pyRevit.addin.inactive`
+On every Revit launch or pyRevit reload, `startup.py` runs:
 
-> **Tab hiding** is handled by pyRevit's built-in Minify UI — not by RST.
+1. Read `active_profile.json` → load the referenced profile JSON
+2. Build the custom ribbon tab via AdWindows (`_build_ribbon`)
+   - Remove any existing `REST_*` tabs
+   - Create branding panel (logo + GitHub link)
+   - Create tool panels with colored backgrounds (rounded corners via DrawingBrush)
+   - Tools: large buttons with PostCommand handlers
+   - Stacks: vertical RibbonRowPanel with up to 3 small buttons
+3. Schedule admin panel styling on Idling event (waits for pyRevit to finish)
+4. On first Idle: style RST admin panels with grey backgrounds, then activate MinifyUI if a profile is loaded
+
+---
+
+## Add-in Detection
+
+**Detection** uses live Revit session data (`LoadedApplications`), not filesystem scanning. Each UI checks required add-ins against the loaded list with substring matching on names and lookup file stems. Status is "Loaded" or "Not Loaded".
+
+**Suppression** (hide rules, disable non-required) still uses filesystem operations — renaming `.addin` ↔ `.addin.inactive` in `%APPDATA%\Autodesk\Revit\Addins\{version}\`.
+
+---
+
+## Configuration
+
+### `lookup/addin_lookup.json`
+Single source of truth for tab name → `.addin` file mapping. Read by both UIs and the Python backend. User-editable — see README for format.
+
+### `lookup/config.json`
+Protected add-ins and exempt paths. User-editable, preserved across updates.
+
+```json
+{
+  "protected_addins": ["pyRevit.addin", "Kinship.addin", "Dynamo.addin", "DynamoForRevit.addin"],
+  "exempt_paths": ["%APPDATA%\\Dynamo"]
+}
+```
+
+- **protected_addins** — never renamed/disabled
+- **exempt_paths** — entire directories skipped during suppress/restore (supports env vars)
 
 ---
 
@@ -160,29 +211,15 @@ TabCreator (admin)                    ProfileSelector (user)
 
 | Decision | Detail |
 |----------|--------|
-| Install method | Add via pyRevit Extension Manager (git URL) — pyRevit appends `.extension` automatically |
+| Install method | pyRevit Extension Manager (git URL) — appends `.extension` automatically |
+| IronPython ↔ CPython | Session data passed via temp JSON files, cleaned up after read |
+| Addin detection | Live session (`LoadedApplications`), not filesystem scanning |
+| Addin suppression | Filesystem rename (`.addin` ↔ `.addin.inactive`), user AppData only |
 | Profile re-export | Overwrites existing file (matched by profile name) |
+| Ribbon rebuild | Always rebuild on startup — no mtime cache |
+| Stacks | Vertical RibbonRowPanel (max 3 small buttons), not dropdown |
+| MinifyUI | Auto-activated after profile load via startup.py Idling hook |
+| Reload UI | WPF ToolWindow with animated dots, auto-dismissed by reload |
+| Protected addins | Configurable via `lookup/config.json` |
 | Icon naming | `{toolName}.png`, appends `(1)` on collision |
-| Revit check | Once at ProfileSelector launch, not polled |
-| Cache | `startup.py` compares file mtime vs `last_built` — skips rebuild if unchanged |
-| Launcher | `.bat` for alpha, `.exe` via PyInstaller for release |
-| Protected addins | pyRevit only |
-
----
-
-## Build Status
-
-| File | Status |
-|------|--------|
-| `profile_manager.html` | Done — wired to pywebview |
-| `profile_loader.html` | Done — wired to pywebview |
-| `spec/HANDOFF.md` | Done — updated for build phase |
-| `spec/addin_lookup.json` | Done |
-| `extension.json` | Done |
-| `startup.py` | Done |
-| `script.py` | Done |
-| `profile_selector.py` | Done |
-| `addin_scanner.py` | Done |
-| `launch_profile_loader.bat` | Done |
-| `icons/RESTer_default.png` | Done — 256x256 default icon |
-| `icon.png` (pushbutton) | Done — 32x32 |
+| Launcher | `.bat` for alpha, `.exe` via PyInstaller planned |
