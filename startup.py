@@ -418,7 +418,6 @@ def _create_stack(stack_name, stack_def):
             btn.ShowText = True
             btn.ShowImage = False
             btn.Size = RibbonItemSize.Standard
-            btn.IsToolBarAccessory = False
 
             # Tooltip with source info
             source_tab = tool.get('sourceTab', '')
