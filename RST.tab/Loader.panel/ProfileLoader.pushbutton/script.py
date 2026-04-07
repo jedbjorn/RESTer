@@ -35,32 +35,38 @@ try:
 except Exception:
     pass
 
+# Collect loaded add-ins by scanning ribbon tabs via AdWindows
 _loaded_addins = []
+_BUILTIN_TABS = {
+    'Architecture', 'Structure', 'Systems', 'Steel', 'Precast',
+    'Insert', 'Annotate', 'Analyze', 'Massing & Site', 'Collaborate',
+    'View', 'Manage', 'Modify', 'Add-Ins', 'RST',
+}
 try:
-    app = __revit__.Application
-    for a in app.LoadedApplications:
-        try:
-            name = str(a.Name) if hasattr(a, 'Name') and a.Name else ''
-            addin_id = ''
+    import clr
+    clr.AddReference('AdWindows')
+    from Autodesk.Windows import ComponentManager
+    ribbon = ComponentManager.Ribbon
+    if ribbon and ribbon.Tabs:
+        seen = set()
+        for tab in ribbon.Tabs:
             try:
-                addin_id = str(a.AddInId) if hasattr(a, 'AddInId') else ''
+                title = str(tab.Title) if tab.Title else ''
+                if not title or title in _BUILTIN_TABS or title in seen:
+                    continue
+                is_ctx = False
+                try:
+                    is_ctx = bool(tab.IsContextualTab)
+                except Exception:
+                    pass
+                if is_ctx:
+                    continue
+                seen.add(title)
+                _loaded_addins.append({'name': title})
             except Exception:
-                pass
-            assembly = ''
-            try:
-                if hasattr(a, 'Assembly') and a.Assembly:
-                    assembly = str(a.Assembly.Location) if a.Assembly.Location else ''
-            except Exception:
-                pass
-            _loaded_addins.append({
-                'name': name,
-                'addinId': addin_id,
-                'assembly': assembly,
-            })
-        except Exception:
-            continue
+                continue
 except Exception as e:
-    log.warning('Could not read LoadedApplications: %s', e)
+    log.warning('Could not scan ribbon for add-ins: %s', e)
 
 log.info('Revit %s, %d loaded add-ins', _revit_version, len(_loaded_addins))
 

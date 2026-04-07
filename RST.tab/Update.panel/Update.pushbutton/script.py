@@ -23,55 +23,9 @@ REPO_ZIP_URL = 'https://github.com/jedbjorn/RST/archive/refs/heads/main.zip'
 
 log.info('Updating RST from %s', _root)
 
-# ── Try pyRevit's git first ──────────────────────────────────────────────────
+# ── Download zip from GitHub and copy directly ───────────────────────────────
 pulled = False
 result_msg = ''
-
-try:
-    from pyrevit.coreutils import git
-    repo = git.get_repo(_root)
-    if repo:
-        log.info('Using pyRevit git')
-        head_before = str(repo.last_commit_hash)
-        repo.fetch('origin')
-        repo.merge('origin/main')
-        head_after = str(repo.last_commit_hash)
-        if head_before == head_after:
-            result_msg = 'already_up_to_date'
-        else:
-            result_msg = 'updated'
-        pulled = True
-except Exception as e:
-    log.warning('pyRevit git failed: %s', e)
-
-# ── Try system git ────────────────────────────────────────────────────────────
-if not pulled:
-    git_paths = [
-        'git',
-        r'C:\Program Files\Git\cmd\git.exe',
-        r'C:\Program Files\Git\bin\git.exe',
-        r'C:\Program Files (x86)\Git\cmd\git.exe',
-        os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Programs', 'Git', 'cmd', 'git.exe'),
-    ]
-    for git_cmd in git_paths:
-        try:
-            out = subprocess.check_output(
-                [git_cmd, 'pull'],
-                cwd=_root,
-                stderr=subprocess.STDOUT
-            )
-            out_str = out.decode('utf-8', errors='replace').strip()
-            log.info('Git pull: %s', out_str)
-            if 'Already up' in out_str:
-                result_msg = 'already_up_to_date'
-            else:
-                result_msg = 'updated'
-            pulled = True
-            break
-        except Exception:
-            continue
-
-# ── Fallback: download zip and copy directly ─────────────────────────────────
 _zip_error = ''
 if not pulled:
     log.info('Git not available — downloading zip from GitHub')

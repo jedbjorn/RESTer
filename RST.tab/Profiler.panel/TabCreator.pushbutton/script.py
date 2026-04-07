@@ -181,34 +181,41 @@ def get_installed_commands():
     return results
 
 
+_BUILTIN_TABS = {
+    'Architecture', 'Structure', 'Systems', 'Steel', 'Precast',
+    'Insert', 'Annotate', 'Analyze', 'Massing & Site', 'Collaborate',
+    'View', 'Manage', 'Modify', 'Add-Ins', 'RST',
+}
+
+
 def get_loaded_addins():
-    """Collect all add-ins loaded in the current Revit session."""
+    """Collect loaded add-ins by scanning non-builtin ribbon tabs."""
     addins = []
     try:
-        app = __revit__.Application
-        for a in app.LoadedApplications:
-            try:
-                name = str(a.Name) if hasattr(a, 'Name') and a.Name else ''
-                addin_id = ''
+        import clr
+        clr.AddReference('AdWindows')
+        from Autodesk.Windows import ComponentManager
+        ribbon = ComponentManager.Ribbon
+        if ribbon and ribbon.Tabs:
+            seen = set()
+            for tab in ribbon.Tabs:
                 try:
-                    addin_id = str(a.AddInId) if hasattr(a, 'AddInId') else ''
+                    title = str(tab.Title) if tab.Title else ''
+                    if not title or title in _BUILTIN_TABS or title in seen:
+                        continue
+                    is_ctx = False
+                    try:
+                        is_ctx = bool(tab.IsContextualTab)
+                    except Exception:
+                        pass
+                    if is_ctx:
+                        continue
+                    seen.add(title)
+                    addins.append({'name': title})
                 except Exception:
-                    pass
-                assembly = ''
-                try:
-                    if hasattr(a, 'Assembly') and a.Assembly:
-                        assembly = str(a.Assembly.Location) if a.Assembly.Location else ''
-                except Exception:
-                    pass
-                addins.append({
-                    'name': name,
-                    'addinId': addin_id,
-                    'assembly': assembly,
-                })
-            except Exception:
-                continue
+                    continue
     except Exception as e:
-        log.warning('Could not read LoadedApplications: %s', e)
+        log.warning('Could not scan ribbon for add-ins: %s', e)
     log.info('Found %d loaded add-ins', len(addins))
     return addins
 
