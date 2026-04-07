@@ -2073,10 +2073,7 @@
     const stack = state.stacks[stackName];
     if (!stack || stack.tools.length >= 3) return;
     const query = input.value.toLowerCase();
-    const placedStandalone = new Set(
-      Object.values(state.panels).flatMap(p => p.slots.filter(s => s.type === 'tool').map(s => s.name))
-    );
-    const available = state.allTools.filter(t => !stack.tools.includes(t.name) && !placedStandalone.has(t.name));
+    const available = state.allTools.filter(t => !stack.tools.includes(t.name));
     const filtered = available.filter(t => !query || t.name.toLowerCase().includes(query));
     const container = document.getElementById('stackPickerResults_' + stackName);
     if (!container) return;
@@ -2110,10 +2107,17 @@
     const stack = state.stacks[stackName];
     if (stack.tools.includes(toolName) || stack.tools.length >= 3) return;
     stack.tools.push(toolName);
+    // Remove from any panel where it was placed standalone
+    Object.values(state.panels).forEach(function(p) {
+      p.slots = p.slots.filter(function(s) {
+        return !(s.type === 'tool' && s.name === toolName);
+      });
+    });
     renderStackList();
     renderSlotList();
     renderMockPreview();
     renderDetectedAddins();
+    renderToolList();
     renderTabCanvas();
     renderPanelSlotList();
   }
