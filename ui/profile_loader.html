@@ -662,13 +662,15 @@
         </div>
       </div>
 
-      <!-- Required Add-ins -->
-      <div id="detailAddins" style="display:none"></div>
-
-      <!-- RSTify Tab Toggles -->
-      <div id="tabTogglesSection" style="display:none">
-        <div class="detail-section-label">RSTify — Hide Tabs</div>
-        <div id="tabTogglesList"></div>
+      <!-- RSTify + Required Add-ins (two columns) -->
+      <div id="addinTogglesRow" style="display:none;gap:18px">
+        <!-- Left: Tab Toggles (1/3) -->
+        <div id="tabTogglesSection" style="flex:1;min-width:0">
+          <div class="detail-section-label">RSTify: Hide These Tabs</div>
+          <div id="tabTogglesList"></div>
+        </div>
+        <!-- Right: Required Add-ins (2/3) -->
+        <div id="detailAddins" style="flex:2;min-width:0"></div>
       </div>
 
     </div>
@@ -793,18 +795,18 @@
   }
 
   function renderTabToggles(profile) {
-    var section = document.getElementById('tabTogglesSection');
     var list = document.getElementById('tabTogglesList');
     if (!profile || !ALL_TABS.length) {
-      section.style.display = 'none';
+      list.innerHTML = '';
       return;
     }
-    section.style.display = 'block';
     var sourceTabs = getSourceTabs(profile);
-    // Also protect the profile's own tab name
     sourceTabs.add(profile.tab || '');
 
-    list.innerHTML = ALL_TABS.map(function(tabName) {
+    // Split into locked and hideable
+    var lockedRows = [];
+    var hideableRows = [];
+    ALL_TABS.forEach(function(tabName) {
       var isCore = CORE_TABS.has(tabName);
       var isSource = sourceTabs.has(tabName);
       var locked = isCore || isSource;
@@ -812,7 +814,7 @@
       var wasHidden = previousHiddenTabs.indexOf(tabName) !== -1;
       var checked = !locked && wasHidden ? 'checked' : '';
 
-      return '<div class="tab-toggle-row' + (locked ? ' locked' : '') + '">' +
+      var row = '<div class="tab-toggle-row' + (locked ? ' locked' : '') + '">' +
         '<span class="tab-toggle-name">' + escHtml(tabName) + '</span>' +
         (reason ? '<span class="tab-toggle-reason">' + reason + '</span>' : '') +
         '<label class="tab-toggle-switch">' +
@@ -820,7 +822,17 @@
         '<div class="tab-toggle-track"><div class="tab-toggle-thumb"></div></div>' +
         '</label>' +
         '</div>';
-    }).join('');
+
+      if (locked) lockedRows.push(row);
+      else hideableRows.push(row);
+    });
+
+    var html = lockedRows.join('');
+    if (hideableRows.length > 0) {
+      html += '<div style="font-family:\'DM Mono\',monospace;font-size:8px;letter-spacing:0.12em;text-transform:uppercase;color:var(--text3);padding:10px 0 6px">RSTify — Hide Tabs</div>';
+      html += hideableRows.join('');
+    }
+    list.innerHTML = html;
   }
 
   function getSelectedHiddenTabs() {
@@ -900,8 +912,7 @@
     document.getElementById('detailLoadedBadge').style.display = 'none';
     document.getElementById('detailMeta').innerHTML = '';
     document.getElementById('tabCanvas').innerHTML = '';
-    document.getElementById('detailAddins').style.display = 'none';
-    document.getElementById('tabTogglesSection').style.display = 'none';
+    document.getElementById('addinTogglesRow').style.display = 'none';
   }
 
   function selectCard(el, idx) {
@@ -926,12 +937,14 @@
     // Tab preview
     renderTabPreview(profile);
 
-    // Required add-ins — checked against live Revit session data
+    // Show the two-column row
+    document.getElementById('addinTogglesRow').style.display = 'flex';
+
+    // Required add-ins (right column)
     const addinsContainer = document.getElementById('detailAddins');
     if (profile.requiredAddins && profile.requiredAddins.length > 0) {
-      addinsContainer.style.display = 'block';
       addinsContainer.innerHTML = `
-        <div class="detail-section-label">Required Add-ins</div>
+        <div class="detail-section-label">Required Add-ins for this profile</div>
         ${profile.requiredAddins.map(tabName => {
           const native = isNativeTab(tabName);
           const known = ADDIN_LOOKUP[tabName];
@@ -951,10 +964,10 @@
         }).join('')}
       `;
     } else {
-      addinsContainer.style.display = 'none';
+      addinsContainer.innerHTML = '<div class="detail-section-label">Required Add-ins for this profile</div><div style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--text3);padding:8px 0">None</div>';
     }
 
-    // RSTify tab toggles
+    // RSTify tab toggles (left column)
     renderTabToggles(profile);
 
   }
