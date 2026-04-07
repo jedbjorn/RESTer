@@ -3,6 +3,20 @@
 __title__ = 'RSTify'
 __doc__ = 'Toggle hidden tabs on/off. Configure which tabs to hide in the Profile Loader.'
 
+from pyrevit import script
+from pyrevit.coreutils.ribbon import ICON_MEDIUM
+
+
+def __selfinit__(script_cmp, ui_button_cmp, __rvt__):
+    """Set icon to orange if RSTify is active (tabs hidden)."""
+    is_active = script.get_envvar('RSTIFYACTIVE')
+    if is_active:
+        on_icon = script_cmp.directory + '\\on.png'
+        import os
+        if os.path.exists(on_icon):
+            ui_button_cmp.set_icon(on_icon, icon_size=ICON_MEDIUM)
+
+
 import io
 import os
 import json
@@ -15,6 +29,8 @@ import sys
 sys.path.insert(0, os.path.join(_root, 'app'))
 from logger import get_logger
 log = get_logger('rstify')
+
+from pyrevit import script
 
 _active_path = os.path.join(_root, 'app', 'active_profile.json')
 
@@ -60,6 +76,11 @@ else:
                     count += 1
             except Exception:
                 continue
+
+        # Toggle icon and env var: orange when hiding (active), blue when showing
+        is_hiding = not new_visible
+        script.set_envvar('RSTIFYACTIVE', is_hiding)
+        script.toggle_icon(is_hiding)
 
         if new_visible:
             log.info('RSTify: showing %d tabs', count)
