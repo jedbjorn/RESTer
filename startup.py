@@ -316,9 +316,8 @@ def _build_ribbon(profile):
                     stack_name = slot.get('name', '')
                     stack_def_data = stacks.get(stack_name)
                     if stack_def_data:
-                        row = _create_stack_button(stack_name, stack_def_data)
-                        if row:
-                            aw_panel.Source.Items.Add(row)
+                        for btn in _create_stack_buttons(stack_name, stack_def_data):
+                            aw_panel.Source.Items.Add(btn)
                     else:
                         log.warning('Stack not found: %s', stack_name)
 
@@ -394,26 +393,25 @@ def _create_tool_button(slot):
         return None
 
 
-def _create_stack_button(stack_name, stack_def):
-    """Create a RibbonRowPanel with up to 3 small buttons stacked vertically."""
-    from Autodesk.Windows import RibbonRowPanel, RibbonButton, RibbonItemSize
+def _create_stack_buttons(stack_name, stack_def):
+    """Create a list of standard-sized RibbonButtons for vertical stacking.
+    The ribbon auto-stacks consecutive standard items in groups of up to 3."""
+    from Autodesk.Windows import RibbonButton, RibbonItemSize
 
     tools = stack_def.get('tools', [])
+    buttons = []
 
-    try:
-        row = RibbonRowPanel()
-        row.Id = 'REST_Stack_' + stack_name.replace(' ', '_')
-
-        for tool in tools:
+    for tool in tools:
+        try:
             tool_name = tool.get('baseName', tool.get('name', 'Tool'))
             full_name = tool.get('name', tool_name)
             command_id = tool.get('commandId', '')
 
-            child = RibbonButton()
-            child.Text = tool_name
-            child.Id = 'REST_StackBtn_' + full_name.replace(' ', '_')
-            child.ShowText = True
-            child.Size = RibbonItemSize.Standard
+            btn = RibbonButton()
+            btn.Text = tool_name
+            btn.Id = 'REST_StackBtn_' + full_name.replace(' ', '_')
+            btn.ShowText = True
+            btn.Size = RibbonItemSize.Standard
 
             # Tooltip with source info
             source_tab = tool.get('sourceTab', '')
@@ -424,14 +422,14 @@ def _create_stack_button(stack_name, stack_def):
             elif source_tab:
                 tip = '%s\nSource: %s' % (tool_name, source_tab)
             try:
-                child.ToolTip = tip
+                btn.ToolTip = tip
             except Exception:
                 pass
 
             # 16x16 icon for stack items
             icon = _load_icon(_get_icon_path(tool, small=True))
             if icon:
-                child.Image = icon
+                btn.Image = icon
 
             if command_id:
                 if command_id.startswith('URL:'):
@@ -439,17 +437,15 @@ def _create_stack_button(stack_name, stack_def):
                 else:
                     handler = _make_command_handler(command_id)
                 if handler:
-                    child.CommandHandler = handler
+                    btn.CommandHandler = handler
 
-            row.Items.Add(child)
+            buttons.append(btn)
             log.debug('  Stack tool: %s -> %s', tool_name, command_id)
+        except Exception as e:
+            log.error('Failed to create stack button %s: %s', tool_name, e)
 
-        log.debug('Created stack: %s (%d tools)', stack_name, len(tools))
-        return row
-
-    except Exception as e:
-        log.error('Failed to create stack %s: %s', stack_name, e)
-        return None
+    log.debug('Created stack: %s (%d tools)', stack_name, len(buttons))
+    return buttons
 
 
 def _make_command_handler(command_id):
