@@ -385,15 +385,15 @@ def _create_tool_button(slot):
             if handler:
                 btn.CommandHandler = handler
 
-        # Style URL tools with underline and link color
+        # Style URL tools with arrow prefix and link color
         if is_url:
-            btn.Text = u'\u0332'.join(display_name) + u'\u0332'
+            url_name = u'\u279A ' + display_name
+            btn.Text = url_name.replace(' ', '\n', 1) if ' ' in url_name else url_name
             try:
                 import clr
                 clr.AddReference('PresentationCore')
                 from System.Windows.Media import SolidColorBrush, Color
-                link_blue = Color.FromRgb(79, 142, 247)
-                btn.Foreground = SolidColorBrush(link_blue)
+                btn.Foreground = SolidColorBrush(Color.FromRgb(79, 142, 247))
             except Exception:
                 pass
 
@@ -449,9 +449,9 @@ def _create_stack_buttons(stack_name, stack_def):
                 if handler:
                     btn.CommandHandler = handler
 
-            # Style URL tools with underline and link color
+            # Style URL tools with arrow prefix and link color
             if is_url:
-                btn.Text = u'\u0332'.join(tool_name + ' ') + u'\u0332'
+                btn.Text = u'\u279A ' + tool_name + ' '
                 try:
                     import clr
                     clr.AddReference('PresentationCore')
