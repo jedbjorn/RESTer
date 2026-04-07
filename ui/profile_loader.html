@@ -755,7 +755,18 @@
   }
 
   // ── ADD-IN SESSION CHECK ──────────────────────────────────────────────────────
+  var BUILTIN_TABS = new Set([
+    'Architecture', 'Structure', 'Systems', 'Steel', 'Precast',
+    'Insert', 'Annotate', 'Analyze', 'Massing & Site', 'Collaborate',
+    'View', 'Manage', 'Modify', 'Add-Ins',
+  ]);
+
+  function isNativeTab(tabName) {
+    return BUILTIN_TABS.has(tabName);
+  }
+
   function isAddinLoaded(tabName) {
+    if (isNativeTab(tabName)) return true;
     if (!LOADED_ADDINS.length) return false;
     var tabLower = tabName.toLowerCase();
     var entry = ADDIN_LOOKUP[tabName];
@@ -883,17 +894,19 @@
       addinsContainer.innerHTML = `
         <div class="detail-section-label">Required Add-ins</div>
         ${profile.requiredAddins.map(tabName => {
+          const native = isNativeTab(tabName);
           const known = ADDIN_LOOKUP[tabName];
           const loaded = isAddinLoaded(tabName);
           const statusCls   = loaded ? 'present' : 'missing';
-          const statusLabel = loaded ? 'Loaded' : 'Not Loaded';
-          const matchedName = loaded ? getLoadedAddinName(tabName) : '';
-          const statusTitle = loaded
-            ? 'Loaded in current Revit session' + (matchedName ? ' (' + matchedName + ')' : '')
-            : 'Not detected in current Revit session';
+          const statusLabel = native ? 'Native' : (loaded ? 'Loaded' : 'Not Loaded');
+          const matchedName = !native && loaded ? getLoadedAddinName(tabName) : '';
+          const fileCol     = native ? 'Revit Built-in' : (matchedName ? escHtml(matchedName) : (known ? known.file : ''));
+          const statusTitle = native
+            ? 'Built-in Revit tab — always available'
+            : (loaded ? 'Loaded in current Revit session' + (matchedName ? ' (' + matchedName + ')' : '') : 'Not detected in current Revit session');
           return `<div class="addin-row">
             <span class="addin-row-name">${escHtml(tabName)}</span>
-            <span class="addin-file">${matchedName ? escHtml(matchedName) : (known ? known.file : '')}</span>
+            <span class="addin-file">${fileCol}</span>
             <span class="addin-status ${statusCls}" title="${statusTitle}">${statusLabel}</span>
           </div>`;
         }).join('')}

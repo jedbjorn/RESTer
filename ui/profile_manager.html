@@ -1474,7 +1474,18 @@
   // ── LOADED ADD-INS (from Revit session) ────────────────────────────────────
   let LOADED_ADDINS = [];
 
+  var BUILTIN_TABS = new Set([
+    'Architecture', 'Structure', 'Systems', 'Steel', 'Precast',
+    'Insert', 'Annotate', 'Analyze', 'Massing & Site', 'Collaborate',
+    'View', 'Manage', 'Modify', 'Add-Ins',
+  ]);
+
+  function isNativeTab(tabName) {
+    return BUILTIN_TABS.has(tabName);
+  }
+
   function isAddinLoaded(tabName) {
+    if (isNativeTab(tabName)) return true;
     if (!LOADED_ADDINS.length) return false;
     var tabLower = tabName.toLowerCase();
     var entry = ADDIN_LOOKUP[tabName];
@@ -1650,11 +1661,15 @@
       display.innerHTML = `<span class="addin-chip-empty">none detected</span>`;
     } else {
       display.innerHTML = addins.map(name => {
+        const native    = isNativeTab(name);
         const known     = ADDIN_LOOKUP[name];
         const loaded    = isAddinLoaded(name);
-        const isUnknown = !known && !loaded;
+        const isUnknown = !native && !known && !loaded;
         let title, cls;
-        if (loaded) {
+        if (native) {
+          title = 'Revit built-in — always available';
+          cls = '';
+        } else if (loaded) {
           title = 'Loaded in current Revit session';
           cls = '';
         } else if (known) {
@@ -1664,7 +1679,7 @@
           title = 'Not in lookup and not loaded';
           cls = ' unknown';
         }
-        const badge = loaded ? ' ✓' : (isUnknown ? ' ?' : '');
+        const badge = native ? ' Native' : (loaded ? ' ✓' : (isUnknown ? ' ?' : ''));
         return `<span class="addin-chip${cls}" title="${title}">${name}${badge}</span>`;
       }).join('');
     }
