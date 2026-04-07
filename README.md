@@ -21,7 +21,7 @@ Custom Revit ribbon toolbar profile system built on PyRevit. Admins build curate
 - **Profile switching** — hot-swap between profiles with automatic pyRevit reload
 - **Blank profiles** — unloading or deleting the active profile creates a clean blank tab
 - **One-click update** — downloads latest from GitHub (zip), preserves user data, reloads automatically
-- **MinifyUI** — auto-activates after profile load to hide unused ribbon tabs
+- **RSTify** — profile-aware tab hiding replaces MinifyUI; auto-activates on load, toggle on/off with icon color feedback
 
 ---
 
@@ -74,8 +74,9 @@ One IronPython process inside Revit, one CPython process for UIs, temp JSON file
 3. Builds branding panel (logo, always leftmost)
 4. Creates colored panels with rounded-corner backgrounds
 5. Adds large tool buttons with PostCommand handlers
-6. Adds stacks as `RibbonRowPanel` with 2–3 small text-only buttons
-7. On Idling event: styles RST admin panels grey, activates MinifyUI if configured
+6. Adds small tool groups (standard-sized text-only buttons)
+7. Disables pyRevit's MinifyUI (replaces with stub to avoid conflicts)
+8. On Idling event: styles RST admin panels grey, hides tabs configured in RSTify, sets RSTify icon to orange
 
 ### Profiler Flow (Admin)
 
@@ -87,8 +88,9 @@ One IronPython process inside Revit, one CPython process for UIs, temp JSON file
 
 1. Click **Loader** → IronPython collects Revit version + loaded add-ins → writes `_loader_data.json` → launches CPython UI
 2. User browses profiles, sees tab preview, checks add-in compatibility (Native/Loaded/Not Loaded)
-3. **Load Profile** → writes `active_profile.json` → animated overlay → window auto-closes (3s)
-4. ProfileLoader button detects the change → shows "Reloading pyRevit..." with animated dots → `sessionmgr.reload()` → ribbon rebuilds
+3. User configures **RSTify tab toggles** — choose which tabs to hide (source tabs and core tabs are locked visible)
+4. **Load Profile** → writes `active_profile.json` with profile + hidden tabs → animated overlay → window auto-closes (3s)
+5. ProfileLoader button detects the change → shows "Reloading pyRevit..." with animated dots → `sessionmgr.reload()` → ribbon rebuilds with hidden tabs applied
 
 ### Add-in Detection
 
@@ -127,11 +129,16 @@ Build and edit toolbar profiles:
 Load and manage profiles:
 - Header: Revit version (live from session), "Add Profile from Path"
 - Profile cards with tab preview, required add-ins status
+- **RSTify tab toggles** — two-column layout: hide tabs (left 1/3) + required add-ins (right 2/3)
 - Load Profile → auto-closes, triggers pyRevit reload
 - Unload or delete profiles (creates blank tab if active)
 
-### Minify
-One-click toggle for pyRevit's MinifyUI. Also auto-activates after profile load.
+### RSTify
+Custom tab visibility manager that replaces pyRevit's MinifyUI:
+- Click to **toggle** hidden tabs on/off — orange icon when hiding, blue when showing
+- Tabs to hide are configured in the Profile Loader at load time
+- Auto-activates on every startup/reload when a profile has hidden tabs
+- No reconfigure from the button — reload profile to change which tabs are hidden
 
 ### Update
 Downloads latest from GitHub (zip-only), preserves user data, reloads pyRevit with animated message.
@@ -149,6 +156,42 @@ Triggers pyRevit reload to apply changes.
 4. In Revit, clicking the button opens the URL in the default browser
 
 Custom tools persist across Profiler sessions (`app/custom_tools.json`). They can be edited, deleted, and survive Detect scans and profile export/import.
+
+---
+
+## RSTify — Tab Visibility
+
+RSTify replaces pyRevit's MinifyUI with profile-aware tab hiding. Instead of a global hide list, each profile load lets you choose which tabs to hide.
+
+### How It Works
+
+1. In the **Profile Loader**, select a profile
+2. The **RSTify: Hide These Tabs** column shows all ribbon tabs with toggles
+3. **Core tabs** (Modify, Manage, View, Annotate, Add-Ins) are locked — can't hide
+4. **Source tabs** (tabs with tools used by the profile) are locked — hiding them would break tools
+5. Everything else can be toggled off (orange = will be hidden)
+6. Click **Load Profile** — hidden tab selections are saved with the profile
+7. On reload, configured tabs are hidden automatically and the RSTify button turns orange
+
+### RSTify Button
+
+- **Orange icon** → tabs are hidden. Click to show all tabs.
+- **Blue icon** → all tabs visible. Click to re-hide configured tabs.
+- No configuration UI — just a toggle. Reconfigure by reloading the profile.
+
+### Previous Selections
+
+When you open the Loader, your previous hidden tab selections are remembered. Tabs you hid last time are pre-toggled.
+
+### pyRevit MinifyUI
+
+RST automatically disables pyRevit's MinifyUI when a profile is loaded to avoid conflicts. The MinifyUI button is replaced with a "MNF - Disabled" stub.
+
+**To restore MinifyUI:** Unload your RST profile (blank tab), then reinstall pyRevit from [pyrevitlabs.github.io/pyRevit](https://pyrevitlabs.github.io/pyRevit/).
+
+### Important
+
+Hiding a tab prevents tools from that tab from executing via PostCommand. RST protects source tabs (tabs with tools in your profile) from being hidden. Only tabs with **no tools** in your profile can be toggled off.
 
 ---
 
@@ -251,6 +294,8 @@ Both files are preserved across updates.
 - **Some OOTB Revit tools** with dropdown/list button CommandIds are filtered out automatically
 - **Locked files during update** — icons loaded by Revit are skipped and overwritten on next restart
 - **Tab persistence** — custom tabs don't survive Revit restart; `startup.py` rebuilds on every launch
+- **Hidden tabs break tools** — tools from hidden tabs may not execute. RSTify protects source tabs from being hidden, but manually hiding a tab with pyRevit's MinifyUI (if restored) can break tools
+- **MinifyUI disabled** — RST replaces MinifyUI with RSTify. Reinstall pyRevit to restore MinifyUI after removing RST
 - **Add-in disabling** — feature deferred; code exists but is not active
 
 ---
