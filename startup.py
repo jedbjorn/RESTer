@@ -406,7 +406,6 @@ def _create_stack(stack_name, stack_def):
     try:
         row = RibbonRowPanel()
         row.Id = 'REST_Stack_' + stack_name.replace(' ', '_')
-        row.IsTopLevel = True
 
         for tool in tools:
             tool_name = tool.get('baseName', tool.get('name', 'Tool'))
