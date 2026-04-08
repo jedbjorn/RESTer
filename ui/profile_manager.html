@@ -731,7 +731,6 @@
   }
   .hex-apply:hover   { border-color: var(--accent3); color: var(--accent3); background: rgba(16,185,129,0.08); }
   .hex-reset:hover   { border-color: #f97316; color: #f97316; background: rgba(249,115,22,0.08); }
-  .hex-save:hover    { border-color: var(--accent);  color: var(--accent);  background: rgba(79,142,247,0.08); }
 
   /* Editor split */
   .editor-body { flex: 1; display: flex; overflow: hidden; }
@@ -1360,9 +1359,8 @@
                 <span class="hex-hash">hex:</span>
                 <input class="hex-input-inline" id="hexInput" type="text" maxlength="6" placeholder="4f8ef7"
                   onkeydown="handleHexKey(event)" oninput="this.classList.remove('err')">
-                <button class="hex-action-btn hex-apply" title="Apply to selected swatch">✓</button>
-                <button class="hex-action-btn hex-reset" title="Restore default color">✕</button>
-                <button class="hex-action-btn hex-save"  title="Add as new swatch">+</button>
+                <button class="hex-action-btn hex-apply" title="Add color swatch">✓</button>
+                <button class="hex-action-btn hex-reset" title="Delete swatch">✕</button>
               </div>
             </div>
             <div style="display:flex;align-items:center;gap:6px;margin-top:6px;">
@@ -2296,7 +2294,7 @@
 
 
   function handleHexKey(e) {
-    if (e.key === 'Enter') applyHex();
+    if (e.key === 'Enter') saveHexFavorite();
     if (e.key === 'Escape') {
       document.getElementById('hexInput').value = '';
       document.getElementById('hexInput').classList.remove('err');
@@ -3214,11 +3212,9 @@
   // ── INIT ──────────────────────────────────────────────────────────────────
   // Wire hex action buttons
   var hexApplyBtn = document.querySelector('.hex-apply');
-  if (hexApplyBtn) hexApplyBtn.addEventListener('click', applyHex);
+  if (hexApplyBtn) hexApplyBtn.addEventListener('click', saveHexFavorite);
   var hexResetBtn = document.querySelector('.hex-reset');
   if (hexResetBtn) hexResetBtn.addEventListener('click', resetSwatch);
-  var hexSaveBtn = document.querySelector('.hex-save');
-  if (hexSaveBtn) hexSaveBtn.addEventListener('click', saveHexFavorite);
 
   // Fallback defaults if pywebview hasn't loaded colors yet
   if (state.panelColors.length === 0) {
