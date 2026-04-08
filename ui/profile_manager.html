@@ -683,7 +683,6 @@
 
   /* Color swatches */
   .swatch-row { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; max-width: 240px; }
-  .swatch-row .hex-inline { flex-basis: 100%; margin-top: 2px; }
 
   .swatch {
     width: 22px; height: 22px;
@@ -1357,14 +1356,13 @@
             <div class="f-label" style="margin-bottom:8px">Panel Color</div>
             <div class="swatch-row" id="swatchRow">
               <!-- swatches populated from panel_colors.json -->
-              <!-- hex inline -->
-              <div class="hex-inline">
-                <span class="hex-hash">hex:</span>
-                <input class="hex-input-inline" id="hexInput" type="text" maxlength="7" placeholder="4f8ef7"
-                  onkeydown="handleHexKey(event)" oninput="this.classList.remove('err')">
-                <button class="hex-action-btn hex-apply" title="Add color swatch">✓</button>
-                <button class="hex-action-btn hex-reset" title="Delete swatch">✕</button>
-              </div>
+            </div>
+            <div class="hex-inline" style="margin-top:8px;">
+              <span class="hex-hash">hex:</span>
+              <input class="hex-input-inline" id="hexInput" type="text" maxlength="7" placeholder="4f8ef7"
+                onkeydown="handleHexKey(event)" oninput="this.classList.remove('err')">
+              <button class="hex-action-btn hex-apply" title="Add color swatch">✓</button>
+              <button class="hex-action-btn hex-reset" title="Delete swatch">✕</button>
             </div>
             <div style="display:flex;align-items:center;gap:6px;margin-top:6px;">
               <span style="font-size:11px;flex-shrink:0">🎨</span>
@@ -2177,9 +2175,7 @@
   // ── COLOR PICKING ──────────────────────────────────────────────────────────
   function renderSwatches() {
     const row = document.getElementById('swatchRow');
-    const hexInline = row.querySelector('.hex-inline');
-    // Remove existing swatches (keep hex-inline)
-    [...row.querySelectorAll('.swatch')].forEach(s => s.remove());
+    row.innerHTML = '';
     state.panelColors.forEach(function(c, i) {
       const el = document.createElement('div');
       const isBlank = !c.hex;
@@ -2187,7 +2183,7 @@
       if (!isBlank) el.style.background = c.hex;
       el.title = isBlank ? c.name + ' (empty)' : c.name;
       el.addEventListener('click', function() { pickColor(i); });
-      row.insertBefore(el, hexInline);
+      row.appendChild(el);
     });
   }
 
