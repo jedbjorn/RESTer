@@ -233,8 +233,8 @@ Every profile tab includes a branding panel (always leftmost) with a logo.
 
 ## Panel Styling
 
-- **Colors** — 8 preset swatches (Blue, Green, Purple, Amber, Red, Cyan, Orange, Lime) plus custom hex input
-- **Persistent color config** — swatch colors are stored in `app/panel_colors.json` and persist across sessions. Enter a hex code and click **✓** to update the selected swatch, **✕** to restore its default, or **+** to add a new swatch.
+- **Colors** — two rows of swatches: 8 built-in presets (Blue, Green, Purple, Amber, Red, Cyan, Orange, Lime) and 8 custom slots (initially blank, shown as dashed outlines)
+- **Persistent color config** — swatch colors are stored in `app/panel_colors.json` and persist across sessions. Click a swatch to select it, type a hex code (with or without `#`, spaces are stripped), then click **✓** to write the color to that swatch. Click **✕** to reset — built-in swatches restore to their factory color, custom swatches clear back to blank. All 16 swatches update live across the panel list, tab preview, and panel slot cards.
 - **Opacity** — per-profile opacity slider (10%–100%) applied to all panel backgrounds
 - **Rounded corners** — WPF DrawingBrush with RectangleGeometry
 - **RST admin panels** — light grey rounded backgrounds, applied after pyRevit finishes loading
