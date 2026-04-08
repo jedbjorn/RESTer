@@ -357,7 +357,7 @@ if __name__ == '__main__':
         x=wx,
         y=wy,
         resizable=True,
-        on_top=True,
+        on_top=False,
         js_api=api
     )
     api.set_window(window)

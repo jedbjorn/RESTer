@@ -657,6 +657,31 @@ def _apply_hidden_tabs():
                 pyscript.set_envvar('RSTIFYACTIVE', True)
             except Exception:
                 pass
+            # Swap the button icon directly — __selfinit__ has already run
+            try:
+                on_icon = os.path.join(_root, 'RST.tab', 'Minify.panel',
+                                       'RSTify.pushbutton', 'on.png')
+                if os.path.exists(on_icon):
+                    from System.Windows.Media.Imaging import BitmapImage
+                    from System import Uri, UriKind
+                    bmp = BitmapImage(Uri(on_icon, UriKind.Absolute))
+                    for tab in ribbon.Tabs:
+                        try:
+                            if str(tab.Title) != 'RST':
+                                continue
+                            for panel in tab.Panels:
+                                for item in panel.Source.Items:
+                                    try:
+                                        if 'RSTify' in str(getattr(item, 'Id', '')):
+                                            item.LargeImage = bmp
+                                            item.Image = bmp
+                                            log.info('Set RSTify button to on.png')
+                                    except Exception:
+                                        continue
+                        except Exception:
+                            continue
+            except Exception as e:
+                log.debug('Could not set RSTify icon: %s', e)
     except Exception as e:
         log.warning('Could not hide tabs: %s', e)
 
