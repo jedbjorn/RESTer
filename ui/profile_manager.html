@@ -2215,24 +2215,6 @@
     return '#' + raw;
   }
 
-  function applyHex() {
-    if (!state.currentPanel) return;
-    const color = validateHex();
-    if (!color) return;
-    // Update the currently selected swatch's color in config
-    if (state.selectedSwatchIdx >= 0 && state.selectedSwatchIdx < state.panelColors.length) {
-      state.panelColors[state.selectedSwatchIdx].hex = color;
-      persistColors();
-      renderSwatches();
-    }
-    state.panels[state.currentPanel].color = color;
-    applyColorToMock(color);
-    renderMockPreview();
-    renderTabCanvas();
-    renderPanelList();
-    document.getElementById('hexInput').value = '';
-  }
-
   var DEFAULT_PANEL_COLORS = [
     { hex: '#4f8ef7', name: 'Blue' },  { hex: '#10b981', name: 'Green' },
     { hex: '#a78bfa', name: 'Purple' }, { hex: '#f59e0b', name: 'Amber' },
