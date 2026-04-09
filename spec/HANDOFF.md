@@ -28,7 +28,7 @@ TabCreator HTML UI                       ProfileSelector HTML UI
   └─ Record mode hook                    └─ reads profiles/ dir at launch
        adwindows.dll ItemExecuted         └─ file picker → copy to profiles/
   └─ Export → .json file                 └─ writes active_profile.json
-       shared to user (any channel)      └─ toggles .addin / .addin.inactive
+       shared to user (any channel)      └─ toggles .addin / .addin.disabled
                                          └─ "Load Profile" → sets active profile
 
 REVIT STARTUP
@@ -141,7 +141,7 @@ This is the exact shape TabCreator exports and ProfileSelector / PyRevit consume
 | `tab` | string | Revit ribbon tab name PyRevit creates |
 | `min_version` | string | Bare year, e.g. `"2024"`. Compare numerically against Revit version |
 | `requiredAddins` | string[] | Ribbon tab names (sourceTab convention). Resolved via ADDIN_LOOKUP |
-| `hideRules` | string[] | Ribbon tab names to suppress. Mechanism: rename `.addin` → `.addin.inactive` |
+| `hideRules` | string[] | Ribbon tab names to suppress. Mechanism: rename `.addin` → `.addin.disabled` |
 | `stacks` | object | Dict keyed by stack name. Only stacks actually placed in a panel slot are exported |
 | `panels[].slots[].type` | `"tool"` \| `"stack"` | Tool slots are self-contained. Stack slots reference `stacks` dict by name |
 | `panels[].slots[].commandId` | string | Only present on `type:"tool"` slots. Two formats: `ID_*` (native) or `CustomCtrl_%CustomCtrl_%{Tab}%{Panel}%{Button}` (add-in) |
@@ -331,7 +331,7 @@ pywebview.start()
 | `add_profile(file_path)` | user selects file | Validates schema, copies to `app/profiles/` (profile is now available in the dropdown), returns profile object or error |
 | `load_profile(profile_name, disable_non_required)` | "Load Profile →" | Writes `active_profile.json`, applies hideRules (addin suppression), returns `{ok, warnings[]}` |
 | `remove_profile(profile_name)` | "Remove Profile" | Deletes file from `app/profiles/`, returns ok |
-| `restore_addins(revit_version)` | "↺ Restore Add-ins" | Renames all `.addin.inactive` → `.addin` in the version's addin dir |
+| `restore_addins(revit_version)` | "↺ Restore Add-ins" | Renames all `.addin.disabled` → `.addin` in the version's addin dir |
 
 **File picker (add_profile):**
 ```python
@@ -371,7 +371,7 @@ def check_addins(required_addins, revit_version):
     """
     lookup = load_addin_lookup()   # reads lookup/addin_lookup.json
     addins_dir = get_addins_dir(revit_version)
-    installed_files = set(os.listdir(addins_dir))   # includes .addin.inactive
+    installed_files = set(os.listdir(addins_dir))   # includes .addin.disabled
     active_files = {f for f in installed_files if f.endswith('.addin')}
     results = {}
 
@@ -408,7 +408,7 @@ These can later be submitted to a central registry to expand the canonical looku
 def apply_hide_rules(hide_rules, revit_version):
     """
     For each tab name in hide_rules, find its .addin file and rename
-    it to .addin.inactive so it won't load on next Revit launch.
+    it to .addin.disabled so it won't load on next Revit launch.
     Revit must be closed before calling this.
     """
     lookup = load_addin_lookup()
@@ -427,12 +427,12 @@ def apply_hide_rules(hide_rules, revit_version):
             os.rename(src, dest)
 
 def restore_all_addins(revit_version):
-    """Rename all .addin.inactive → .addin in the version folder (skip pyRevit)."""
+    """Rename all .addin.disabled → .addin in the version folder (skip pyRevit)."""
     addins_dir = get_addins_dir(revit_version)
     for f in os.listdir(addins_dir):
-        if f.endswith('.addin.inactive') and f != 'pyRevit.addin.inactive':
+        if f.endswith('.addin.disabled') and f != 'pyRevit.addin.disabled':
             src  = os.path.join(addins_dir, f)
-            dest = src.replace('.addin.inactive', '.addin')
+            dest = src.replace('.addin.disabled', '.addin')
             os.rename(src, dest)
 ```
 

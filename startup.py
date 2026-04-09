@@ -15,11 +15,73 @@ from logger import get_logger
 
 log = get_logger('startup')
 
+from user_config import read_intent_log, clear_intent_log
+
 _active_profile_path = os.path.join(_root, 'app', 'active_profile.json')
 _profiles_dir = os.path.join(_root, 'app', 'profiles')
 _icons_dir = os.path.join(_root, 'icons')
 _default_icon_32 = os.path.join(_root, 'icons', 'RESTer_default.png')
 _default_icon_16 = os.path.join(_root, 'icons', 'RESTer_default_16.png')
+
+
+def _reconcile_intent_log():
+    """Check for incomplete rename operations from a previous session.
+    If RST crashed mid-rename, the intent log tells us what was planned
+    so we can finish the job."""
+    try:
+        version = _get_revit_version()
+        if not version:
+            return
+
+        # Get Revit username, fall back to OS username
+        try:
+            username = str(__revit__.Application.Username)  # noqa: F821
+        except Exception:
+            username = os.environ.get('USERNAME', os.environ.get('USER', 'unknown'))
+
+        intent = read_intent_log(username, version)
+        if not intent:
+            return
+
+        planned = intent.get('planned', [])
+        log.info('Found intent log: action=%s, profile=%s, %d planned ops',
+                 intent.get('action'), intent.get('profile'), len(planned))
+
+        reconciled = 0
+        for op in planned:
+            path = op.get('path', '')
+            target_state = op.get('to_state', '')
+
+            if not path or not target_state:
+                continue
+
+            if target_state == 'disabled':
+                # Expected: .addin.disabled should exist
+                expected = path + '.disabled' if not path.endswith('.disabled') else path
+                original = path.replace('.addin.disabled', '.addin') if path.endswith('.disabled') else path
+            else:
+                # Expected: .addin should exist (restored)
+                expected = path.replace('.addin.disabled', '.addin') if path.endswith('.disabled') else path
+                original = path + '.disabled' if not path.endswith('.disabled') else path
+
+            if os.path.exists(expected):
+                continue  # already in target state
+
+            if os.path.exists(original):
+                try:
+                    os.rename(original, expected)
+                    reconciled += 1
+                    log.info('Reconciled: %s -> %s', original, expected)
+                except (OSError, IOError) as e:
+                    log.error('Reconciliation failed: %s -> %s: %s', original, expected, e)
+
+        if reconciled > 0:
+            log.info('Reconciled %d file renames from intent log', reconciled)
+
+        clear_intent_log(username, version)
+        log.info('Intent log cleared')
+    except Exception as e:
+        log.error('Intent reconciliation error: %s', e)
 
 
 def _load_active_profile():
@@ -710,6 +772,7 @@ def _on_idling_style(sender, args):
 # Revit launch and is missed on pyRevit reloads. Since startup.py runs
 # after Revit and all add-ins are loaded, immediate build is safe.
 log.info('=== RST startup — immediate build ===')
+_reconcile_intent_log()
 active, profile = _load_active_profile()
 if active and profile:
     log.info('Active profile: %s', active.get('profile'))

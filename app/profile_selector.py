@@ -18,6 +18,21 @@ _addin_lookup_path = os.path.join(_root, 'lookup', 'addin_lookup.json')
 REQUIRED_FIELDS = {'profile', 'tab', 'min_version', 'exportDate', 'requiredAddins', 'hideRules', 'stacks', 'panels'}
 
 
+def _get_required_tab_names(profile_data):
+    """Extract tab name strings from requiredAddins, handling both old (string[])
+    and new (object[]) formats."""
+    raw = _get_required_tab_names(profile_data)
+    result = []
+    for entry in raw:
+        if isinstance(entry, dict):
+            tab = entry.get('tabName', '')
+            if tab:
+                result.append(tab)
+        elif isinstance(entry, str):
+            result.append(entry)
+    return result
+
+
 def _write_blank_profile():
     """Write a blank active profile so startup.py builds an empty RST tab."""
     blank = {
@@ -38,7 +53,19 @@ import sys
 sys.path.insert(0, os.path.join(_root, 'app'))
 from addin_scanner import (
     BUILTIN_TABS,
+    PROTECTED_ADDINS,
     load_addin_lookup,
+    disable_non_required_addins,
+    restore_all_addins,
+)
+from user_config import (
+    get_current_username,
+    load_user_config,
+    save_user_config,
+    build_user_config,
+    update_addin_states,
+    write_intent_log,
+    clear_intent_log,
 )
 
 # Load session data written by the IronPython pushbutton
@@ -114,6 +141,118 @@ class ProfileSelectorAPI:
         except (IOError, json.JSONDecodeError) as e:
             log.error('Failed to load addin_lookup.json: %s', e)
             return {}
+
+    def _get_username(self):
+        """Get the Revit username from session data, fall back to OS username."""
+        return _loader_data.get('revit_username') or get_current_username()
+
+    def get_user_config(self):
+        """Return user add-in config. Builds from scratch on first call."""
+        username = self._get_username()
+        version = self._revit_version
+        if not version:
+            return None
+
+        config = load_user_config(username, version)
+        if config is None:
+            config = build_user_config(
+                username, version,
+                self._loaded_addins,
+                self._all_tabs,
+                load_addin_lookup(),
+            )
+            save_user_config(config)
+        return config
+
+    def rescan_addins(self):
+        """Force rebuild of user add-in config."""
+        username = self._get_username()
+        version = self._revit_version
+        if not version:
+            return {'ok': False, 'error': 'No Revit version'}
+
+        config = build_user_config(
+            username, version,
+            self._loaded_addins,
+            self._all_tabs,
+            load_addin_lookup(),
+        )
+        save_user_config(config)
+        return {'ok': True, 'config': config}
+
+    def get_disable_preview(self, profile_name):
+        """Return what would stay active vs be disabled for a profile.
+        Used by the confirmation overlay before committing."""
+        config = self.get_user_config()
+        if not config:
+            return {'staying': [], 'disabling': [], 'error': 'No config available'}
+
+        _, profile_data = _find_profile(profile_name)
+        if not profile_data:
+            return {'staying': [], 'disabling': [], 'error': 'Profile not found'}
+
+        required = set(_get_required_tab_names(profile_data))
+        lookup = load_addin_lookup()
+
+        # Also resolve required add-in filenames for protected check
+        required_files = set()
+        for tab_name in required:
+            entry = lookup.get(tab_name)
+            if entry:
+                required_files.add(entry.get('file', '').lower())
+
+        staying = []
+        disabling = []
+
+        for name, info in config.get('addins', {}).items():
+            if not info.get('enabled', True):
+                continue  # already disabled, skip
+            if info.get('elevated', False):
+                continue  # machine-scope, can't touch
+            if info.get('scope') != 'user':
+                continue  # only user-scope add-ins
+
+            addin_path = info.get('addinPath', '')
+            filename = os.path.basename(addin_path).lower() if addin_path else ''
+
+            tab_name = info.get('tabName', '')
+
+            is_required = tab_name in required
+            is_protected = filename in set(p.lower() for p in PROTECTED_ADDINS)
+
+            if is_required or is_protected:
+                staying.append(info)
+            else:
+                disabling.append(info)
+
+        return {'staying': staying, 'disabling': disabling}
+
+    def restore_addins(self):
+        """Restore all disabled add-ins and update user config."""
+        version = self._revit_version
+        if not version:
+            return {'ok': False, 'error': 'No Revit version'}
+
+        username = self._get_username()
+
+        # Write intent log for restore
+        write_intent_log(username, version, 'restore_all', None, [])
+
+        restore_all_addins(version)
+
+        # Update config: mark everything enabled
+        config = load_user_config(username, version)
+        if config:
+            for name in config.get('addins', {}):
+                config['addins'][name]['enabled'] = True
+                # Fix paths: strip .disabled suffix
+                path = config['addins'][name].get('addinPath', '')
+                if path.endswith('.disabled'):
+                    config['addins'][name]['addinPath'] = path.replace('.addin.disabled', '.addin')
+            save_user_config(config)
+
+        clear_intent_log(username, version)
+        return {'ok': True, 'restart_needed': True}
 
     def get_profiles(self):
         log.info('Loading profiles from %s', _profiles_dir)
@@ -211,7 +350,7 @@ class ProfileSelectorAPI:
             warnings.append('No Revit version available - add-in toggling skipped')
         else:
             # Check required addins against loaded session data
-            required = profile_data.get('requiredAddins', [])
+            required = _get_required_tab_names(profile_data)
             if required and self._loaded_addins:
                 loaded_names = [a.get('name', '').lower() for a in self._loaded_addins]
                 lookup = load_addin_lookup()
@@ -229,12 +368,77 @@ class ProfileSelectorAPI:
                         warnings.append('Required add-in not loaded: ' + tab_name)
 
 
+        # Re-enable disabled required add-ins
+        restart_needed = False
+        if revit_version:
+            username = self._get_username()
+            config = load_user_config(username, revit_version)
+            if config:
+                required = set(_get_required_tab_names(profile_data))
+                re_enabled = []
+                for name, info in config.get('addins', {}).items():
+                    if info.get('enabled') is False and info.get('tabName') in required:
+                        disabled_path = info.get('addinPath', '')
+                        if disabled_path and disabled_path.endswith('.disabled') and os.path.exists(disabled_path):
+                            restored_path = disabled_path.replace('.addin.disabled', '.addin')
+                            try:
+                                os.rename(disabled_path, restored_path)
+                                info['enabled'] = True
+                                info['addinPath'] = restored_path
+                                re_enabled.append(name)
+                                log.info('Re-enabled required add-in: %s', name)
+                            except (OSError, IOError) as e:
+                                log.error('Failed to re-enable %s: %s', name, e)
+                                warnings.append('Failed to re-enable: ' + name)
+
+                if re_enabled:
+                    save_user_config(config)
+                    restart_needed = True
+                    log.info('Re-enabled %d disabled required add-ins', len(re_enabled))
+
+        # Disable non-required add-ins if requested
+        if disable_non_required and revit_version:
+            username = self._get_username()
+            required = _get_required_tab_names(profile_data)
+
+            # Build planned operations list from preview
+            preview = self.get_disable_preview(profile_name)
+            planned = []
+            for info in preview.get('disabling', []):
+                path = info.get('addinPath', '')
+                if path:
+                    planned.append({
+                        'path': path,
+                        'from_state': 'enabled',
+                        'to_state': 'disabled',
+                    })
+
+            if planned:
+                # Write intent log BEFORE any renames
+                write_intent_log(username, revit_version, 'disable_unused', profile_name, planned)
+
+                # Perform the renames
+                disable_non_required_addins(required, revit_version)
+
+                # Update user config
+                config = load_user_config(username, revit_version)
+                if config:
+                    disabled_files = [os.path.basename(p['path']) for p in planned]
+                    update_addin_states(config, disabled_files, [])
+                    save_user_config(config)
+
+                # Clear intent log on success
+                clear_intent_log(username, revit_version)
+                restart_needed = True
+                log.info('Disabled %d non-required add-ins', len(planned))
+
         # Write active_profile.json
         active = {
             'profile': profile_name,
             'profile_file': profile_filename,
             'loaded_at': datetime.datetime.now().isoformat(),
             'hidden_tabs': hidden_tabs or [],
+            'disable_non_required': bool(disable_non_required),
         }
         try:
             with open(_active_profile_path, 'w', encoding='utf-8') as f:
@@ -243,8 +447,8 @@ class ProfileSelectorAPI:
             log.error('Failed to write active_profile.json: %s', e)
             return {'ok': False, 'warnings': ['Failed to save active profile: ' + str(e)]}
 
-        log.info('Profile loaded: %s (warnings: %s)', profile_name, warnings)
-        return {'ok': True, 'warnings': warnings}
+        log.info('Profile loaded: %s (warnings: %s, restart: %s)', profile_name, warnings, restart_needed)
+        return {'ok': True, 'warnings': warnings, 'restart_needed': restart_needed}
 
     def remove_profile(self, profile_name):
         log.info('Removing profile: %s', profile_name)

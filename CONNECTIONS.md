@@ -151,7 +151,7 @@ Temp files are deleted after reading. The `loaded_addins` array comes from `__re
 | `load_profile(name, disable, version)` | Write `active_profile.json`, apply hide rules |
 | `remove_profile(name)` | Delete from `app/profiles/` |
 | `unload_profile()` | Write blank `active_profile.json` |
-| `restore_addins()` | Rename `.addin.inactive` → `.addin` |
+| `restore_addins()` | Rename `.addin.disabled` → `.addin` |
 
 ### Python → External Systems
 
@@ -162,7 +162,7 @@ Temp files are deleted after reading. The `loaded_addins` array comes from `__re
 | `ProfileLoader script.py` | `active_profile.json`, `LoadedApplications` | `_loader_data.json` | Launches `profile_selector.py` |
 | `tab_creator.py` | `_revit_data.json`, `profiles/`, `addin_lookup.json` | `profiles/`, `icons/`, Desktop copy | pywebview |
 | `profile_selector.py` | `_loader_data.json`, `profiles/`, `active_profile.json`, `addin_lookup.json` | `active_profile.json`, `profiles/` | pywebview |
-| `addin_scanner.py` | `addin_lookup.json`, `config.json`, `%APPDATA%\...\Addins\` | `.addin` ↔ `.addin.inactive` | Filesystem |
+| `addin_scanner.py` | `addin_lookup.json`, `config.json`, `%APPDATA%\...\Addins\` | `.addin` ↔ `.addin.disabled` | Filesystem |
 | `reload_ui.py` | — | — | WPF window + pyRevit `sessionmgr.reload()` |
 | `logger.py` | — | `rst.log` | — |
 

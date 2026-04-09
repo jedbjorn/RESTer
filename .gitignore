@@ -4,5 +4,6 @@ app/user_addin_overrides.json
 app/_revit_data.json
 app/_loader_data.json
 app/custom_tools.json
+app/users/
 __pycache__/
 *.pyc

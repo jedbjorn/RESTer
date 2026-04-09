@@ -188,9 +188,14 @@ _BUILTIN_TABS = {
 }
 
 
+_all_tabs = []
+
 def get_loaded_addins():
-    """Collect loaded add-ins by scanning non-builtin ribbon tabs."""
+    """Collect loaded add-ins by scanning non-builtin ribbon tabs.
+    Also populates _all_tabs with every visible tab name."""
+    global _all_tabs
     addins = []
+    _all_tabs = []
     try:
         import clr
         clr.AddReference('AdWindows')
@@ -201,7 +206,7 @@ def get_loaded_addins():
             for tab in ribbon.Tabs:
                 try:
                     title = str(tab.Title) if tab.Title else ''
-                    if not title or title in _BUILTIN_TABS or title in seen:
+                    if not title or title in seen:
                         continue
                     is_ctx = False
                     try:
@@ -211,7 +216,9 @@ def get_loaded_addins():
                     if is_ctx:
                         continue
                     seen.add(title)
-                    addins.append({'name': title})
+                    _all_tabs.append(title)
+                    if title not in _BUILTIN_TABS:
+                        addins.append({'name': title})
                 except Exception:
                     continue
     except Exception as e:
@@ -225,13 +232,50 @@ log.info('Collecting Revit data...')
 revit_version = get_revit_version()
 commands = get_installed_commands()
 loaded_addins = get_loaded_addins()
-log.info('Revit %s, %d commands, %d loaded add-ins', revit_version, len(commands), len(loaded_addins))
+# Enrich loaded_addins with LoadedApplications assembly paths
+try:
+    _loaded_apps = {}
+    for app in __revit__.Application.LoadedApplications:
+        try:
+            name = str(app.Name) if hasattr(app, 'Name') else ''
+            if name:
+                entry = {'name': name}
+                if hasattr(app, 'AddInId'):
+                    entry['addinId'] = str(app.AddInId)
+                if hasattr(app, 'Assembly') and app.Assembly:
+                    entry['assembly'] = str(app.Assembly.Location) if hasattr(app.Assembly, 'Location') else ''
+                _loaded_apps[name.lower()] = entry
+        except Exception:
+            continue
+
+    for addin in loaded_addins:
+        key = addin.get('name', '').lower()
+        if key in _loaded_apps:
+            match = _loaded_apps[key]
+            if 'addinId' in match:
+                addin['addinId'] = match['addinId']
+            if 'assembly' in match:
+                addin['assembly'] = match['assembly']
+except Exception as e:
+    log.warning('Could not scan LoadedApplications: %s', e)
+
+# Get Revit username
+revit_username = None
+try:
+    revit_username = str(__revit__.Application.Username)
+except Exception:
+    pass
+
+log.info('Revit %s, %d commands, %d loaded add-ins, username=%s',
+         revit_version, len(commands), len(loaded_addins), revit_username)
 
 # Write to temp file for CPython to read
 revit_data = {
     'revit_version': revit_version,
+    'revit_username': revit_username,
     'commands': commands,
     'loaded_addins': loaded_addins,
+    'all_tabs': _all_tabs,
 }
 data_path = os.path.join(_root, 'app', '_revit_data.json')
 with io.open(data_path, 'w', encoding='utf-8') as f:

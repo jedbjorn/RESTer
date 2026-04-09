@@ -72,13 +72,50 @@ try:
 except Exception as e:
     log.warning('Could not scan ribbon for tabs: %s', e)
 
-log.info('Revit %s, %d tabs, %d loaded add-ins', _revit_version, len(_all_tabs), len(_loaded_addins))
+# Collect LoadedApplications for assembly paths
+try:
+    _loaded_apps = {}
+    for app in __revit__.Application.LoadedApplications:
+        try:
+            name = str(app.Name) if hasattr(app, 'Name') else ''
+            if name:
+                entry = {'name': name}
+                if hasattr(app, 'AddInId'):
+                    entry['addinId'] = str(app.AddInId)
+                if hasattr(app, 'Assembly') and app.Assembly:
+                    entry['assembly'] = str(app.Assembly.Location) if hasattr(app.Assembly, 'Location') else ''
+                _loaded_apps[name.lower()] = entry
+        except Exception:
+            continue
+
+    # Merge assembly info into _loaded_addins
+    for addin in _loaded_addins:
+        key = addin.get('name', '').lower()
+        if key in _loaded_apps:
+            match = _loaded_apps[key]
+            if 'addinId' in match:
+                addin['addinId'] = match['addinId']
+            if 'assembly' in match:
+                addin['assembly'] = match['assembly']
+except Exception as e:
+    log.warning('Could not scan LoadedApplications: %s', e)
+
+# Get Revit username (Autodesk account name)
+_revit_username = None
+try:
+    _revit_username = str(__revit__.Application.Username)
+except Exception:
+    pass
+
+log.info('Revit %s, %d tabs, %d loaded add-ins, username=%s',
+         _revit_version, len(_all_tabs), len(_loaded_addins), _revit_username)
 
 # Write session data for CPython to read
 _loader_data_path = os.path.join(_root, 'app', '_loader_data.json')
 with io.open(_loader_data_path, 'w', encoding='utf-8') as f:
     json.dump({
         'revit_version': _revit_version,
+        'revit_username': _revit_username,
         'loaded_addins': _loaded_addins,
         'all_tabs': _all_tabs,
     }, f)

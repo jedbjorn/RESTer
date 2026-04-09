@@ -1199,6 +1199,36 @@
     color: var(--warn);
   }
 
+  /* ── DISABLED ADD-INS BANNER ── */
+  .disabled-banner {
+    display: none;
+    background: rgba(245,158,11,0.08);
+    border-bottom: 1px solid rgba(245,158,11,0.25);
+    padding: 8px 20px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--text2);
+    align-items: center;
+    gap: 12px;
+  }
+  .disabled-banner.visible { display: flex; }
+  .disabled-banner-icon { color: var(--warn); font-size: 13px; flex-shrink: 0; }
+  .disabled-banner-text { flex: 1; line-height: 1.5; }
+  .disabled-banner-text strong { color: var(--warn); }
+  .disabled-banner-dismiss {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    background: none;
+    border: 1px solid rgba(245,158,11,0.3);
+    color: var(--warn);
+    border-radius: 4px;
+    padding: 4px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .disabled-banner-dismiss:hover { background: rgba(245,158,11,0.1); }
+
   /* ── EXPORT OVERLAY ── */
   .export-overlay {
     position: fixed; inset: 0;
@@ -1285,6 +1315,17 @@
       detected &nbsp;<span id="rvtVersionDisplay" style="color:var(--text2);letter-spacing:0">Revit 2024</span>
     </span>
   </div>
+</div>
+
+<!-- Disabled Add-ins Warning Banner -->
+<div class="disabled-banner" id="disabledBanner">
+  <span class="disabled-banner-icon">&#9888;</span>
+  <div class="disabled-banner-text">
+    <strong>Some add-ins are disabled.</strong>
+    Tools from disabled add-ins will not appear in the ribbon.
+    <span class="disabled-banner-list" id="disabledBannerList"></span>
+  </div>
+  <button class="disabled-banner-dismiss" onclick="dismissDisabledBanner()">Dismiss</button>
 </div>
 
 <div class="body">
@@ -1473,6 +1514,10 @@
   // ── LOADED ADD-INS (from Revit session) ────────────────────────────────────
   let LOADED_ADDINS = [];
 
+  // ── RESOLVED ADD-INS (assembly cross-reference: tab → .addin file) ────────
+  // {tabName: {addinFile, assemblyPath, url}} — definitive mapping from session
+  let RESOLVED_ADDINS = {};
+
   var BUILTIN_TABS = new Set([
     'Architecture', 'Structure', 'Systems', 'Steel', 'Precast',
     'Insert', 'Annotate', 'Analyze', 'Massing & Site', 'Collaborate',
@@ -1641,7 +1686,6 @@
             const tool = state.allTools.find(t => t.name === slot.name);
             if (tool?.sourceTab && tool.sourceTab !== 'Custom' && !tool.sourceTab.startsWith('CustomCtrl_')) tabs.add(tool.sourceTab);
           } else if (slot.type === 'stack') {
-            // Also resolve sourceTab for every tool inside a placed stack
             const stack = state.stacks[slot.name];
             if (stack) {
               stack.tools.forEach(toolName => {
@@ -1652,7 +1696,21 @@
           }
         });
       });
-    return [...tabs];
+
+    // Return enriched objects using resolved assembly data
+    return [...tabs].map(tabName => {
+      const resolved = RESOLVED_ADDINS[tabName] || {};
+      const lookup = ADDIN_LOOKUP[tabName] || {};
+      return {
+        tabName: tabName,
+        addinFile: resolved.addinFile || lookup.file || null,
+        url: resolved.url || lookup.url || '',
+      };
+    });
+  }
+
+  function dismissDisabledBanner() {
+    document.getElementById('disabledBanner').classList.remove('visible');
   }
 
   function renderDetectedAddins() {
@@ -1661,26 +1719,31 @@
     if (addins.length === 0) {
       display.innerHTML = `<span class="addin-chip-empty">none detected</span>`;
     } else {
-      display.innerHTML = addins.map(name => {
+      display.innerHTML = addins.map(addin => {
+        const name      = addin.tabName;
         const native    = isNativeTab(name);
         const known     = ADDIN_LOOKUP[name];
         const loaded    = isAddinLoaded(name);
-        const isUnknown = !native && !known && !loaded;
+        const resolved  = addin.addinFile != null;
+        const isUnknown = !native && !known && !loaded && !resolved;
         let title, cls;
         if (native) {
-          title = 'Revit built-in — always available';
+          title = 'Revit built-in \u2014 always available';
+          cls = '';
+        } else if (resolved) {
+          title = 'Resolved: ' + addin.addinFile + (loaded ? ' (loaded)' : '');
           cls = '';
         } else if (loaded) {
           title = 'Loaded in current Revit session';
           cls = '';
         } else if (known) {
-          title = known.displayName + ' — not loaded in this session';
+          title = known.displayName + ' \u2014 not loaded in this session';
           cls = ' unknown';
         } else {
           title = 'Not in lookup and not loaded';
           cls = ' unknown';
         }
-        const badge = native ? ' Native' : (loaded ? ' ✓' : (isUnknown ? ' ?' : ''));
+        const badge = native ? ' Native' : (resolved || loaded ? ' \u2713' : (isUnknown ? ' ?' : ''));
         return `<span class="addin-chip${cls}" title="${title}">${name}${badge}</span>`;
       }).join('');
     }
@@ -3162,7 +3225,26 @@
         }
       }
 
+      // Fetch resolved add-in mappings (assembly cross-reference)
+      if (window.pywebview && window.pywebview.api && window.pywebview.api.get_resolved_addins) {
+        const resolved = await window.pywebview.api.get_resolved_addins();
+        if (resolved && typeof resolved === 'object') {
+          RESOLVED_ADDINS = resolved;
+        }
+      }
+
       renderDetectedAddins();
+
+      // Check for disabled add-ins and show warning banner
+      if (window.pywebview.api.get_disabled_addins) {
+        const disabled = await window.pywebview.api.get_disabled_addins();
+        if (disabled && disabled.length > 0) {
+          const names = disabled.map(a => a.displayName || a.tabName || 'Unknown');
+          document.getElementById('disabledBannerList').textContent =
+            'Disabled: ' + names.join(', ') + '.';
+          document.getElementById('disabledBanner').classList.add('visible');
+        }
+      }
     } catch(e) { /* ignore */ }
 
     try {

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import json
+import xml.etree.ElementTree as ET
 from logger import get_logger
 
 log = get_logger('addin_scanner')
@@ -176,17 +177,109 @@ def get_installed_revit_versions():
 
 
 def _find_all_addin_files(search_dirs):
-    """Recursively find all .addin and .addin.inactive files across all dirs."""
+    """Recursively find all .addin and .addin.disabled files across all dirs."""
     addin_files = {}  # filename -> list of full paths
     for base_dir in search_dirs:
         for dirpath, dirnames, filenames in os.walk(base_dir):
             for f in filenames:
-                if f.endswith('.addin') or f.endswith('.addin.inactive'):
+                if f.endswith('.addin') or f.endswith('.addin.disabled'):
                     full_path = os.path.join(dirpath, f)
                     if f not in addin_files:
                         addin_files[f] = []
                     addin_files[f].append(full_path)
     return addin_files
+
+
+def parse_addin_assemblies(addin_files):
+    """Parse .addin XML files and extract Assembly DLL paths.
+
+    Returns dict: {normalized_dll_path: addin_filename}
+    Each .addin file can contain multiple <AddIn> elements, each with an
+    <Assembly> child pointing to a DLL.
+    """
+    dll_to_addin = {}
+    for fname, paths in addin_files.items():
+        if not (fname.endswith('.addin') or fname.endswith('.addin.disabled')):
+            continue
+        # Use first path for each filename
+        fpath = paths[0]
+        try:
+            tree = ET.parse(fpath)
+            root = tree.getroot()
+            for addin_elem in root.iter('AddIn'):
+                assembly = addin_elem.findtext('Assembly')
+                if assembly:
+                    dll_to_addin[os.path.normpath(assembly).lower()] = fname
+        except (ET.ParseError, IOError, OSError) as e:
+            log.debug('Could not parse %s: %s', fpath, e)
+            continue
+    log.debug('Parsed assemblies from %d .addin files', len(dll_to_addin))
+    return dll_to_addin
+
+
+def resolve_tab_to_addin(loaded_addins, addin_files, addin_lookup=None):
+    """Cross-reference LoadedApplications assembly paths against .addin XML
+    to build a definitive tab-name → .addin-filename mapping.
+
+    loaded_addins: list of {name, assembly?, addinId?} from Revit session
+    addin_files: result of _find_all_addin_files()
+    addin_lookup: optional fallback lookup dict (tab_name → {file, url, ...})
+
+    Returns dict: {tab_name: {addinFile, assemblyPath, url}}
+    """
+    dll_to_addin = parse_addin_assemblies(addin_files)
+    if addin_lookup is None:
+        addin_lookup = {}
+
+    resolved = {}
+    for entry in (loaded_addins or []):
+        tab_name = entry.get('name', '')
+        if not tab_name or tab_name in BUILTIN_TABS:
+            continue
+
+        assembly = entry.get('assembly', '')
+        addin_file = None
+        url = ''
+
+        # Primary: match via assembly DLL path
+        if assembly:
+            norm_assembly = os.path.normpath(assembly).lower()
+            addin_file = dll_to_addin.get(norm_assembly)
+
+        # Fallback: addin_lookup.json
+        if not addin_file and tab_name in addin_lookup:
+            lookup_entry = addin_lookup[tab_name]
+            expected = lookup_entry.get('file', '')
+            if expected and (expected in addin_files or expected + '.disabled' in addin_files):
+                addin_file = expected
+            url = lookup_entry.get('url', '')
+
+        # Fallback: fuzzy filename match
+        if not addin_file:
+            tab_lower = tab_name.lower()
+            for fname in addin_files:
+                if tab_lower in fname.lower() and (fname.endswith('.addin') or fname.endswith('.addin.disabled')):
+                    addin_file = fname
+                    break
+
+        if not url and tab_name in addin_lookup:
+            url = addin_lookup[tab_name].get('url', '')
+
+        # Normalize: strip .disabled suffix for the canonical filename
+        if addin_file and addin_file.endswith('.disabled'):
+            addin_file = addin_file.replace('.addin.disabled', '.addin')
+
+        resolved[tab_name] = {
+            'addinFile': addin_file,
+            'assemblyPath': assembly or None,
+            'url': url,
+        }
+
+    log.info('Resolved %d tab-to-addin mappings (%d via assembly, %d via fallback)',
+             len(resolved),
+             sum(1 for r in resolved.values() if r['assemblyPath']),
+             sum(1 for r in resolved.values() if not r['assemblyPath']))
+    return resolved
 
 
 def _search_addin_contents(tab_name, addin_files):
@@ -275,7 +368,7 @@ def check_addins(required_addins, revit_version):
 
 
 def apply_hide_rules(hide_rules, revit_version):
-    """Rename .addin -> .addin.inactive for each tab in hide_rules.
+    """Rename .addin -> .addin.disabled for each tab in hide_rules.
     Only modifies files in user/ProgramData dirs, never Program Files."""
     log.info('Applying hide rules for Revit %s: %s', revit_version, hide_rules)
     lookup = load_addin_lookup()
@@ -314,8 +407,8 @@ def apply_hide_rules(hide_rules, revit_version):
             log.debug('Skipping protected/exempt path: %s', fpath)
             continue
 
-        dest = fpath + '.inactive'
-        if os.path.exists(fpath) and not fpath.endswith('.inactive'):
+        dest = fpath + '.disabled'
+        if os.path.exists(fpath) and not fpath.endswith('.disabled'):
             try:
                 os.rename(fpath, dest)
                 log.info('Hidden: %s', fpath)
@@ -324,11 +417,11 @@ def apply_hide_rules(hide_rules, revit_version):
 
 
 def restore_all_addins(revit_version):
-    """Rename all .addin.inactive -> .addin (skip protected, skip Program Files)."""
+    """Rename all .addin.disabled -> .addin (skip protected, skip Program Files)."""
     log.info('Restoring all addins for Revit %s', revit_version)
     search_dirs = get_addins_dirs(revit_version)
 
-    protected_inactive = set(p + '.inactive' for p in PROTECTED_ADDINS)
+    protected_disabled = set(p + '.disabled' for p in PROTECTED_ADDINS)
 
     for base_dir in search_dirs:
         if _is_hands_off(base_dir):
@@ -337,9 +430,9 @@ def restore_all_addins(revit_version):
             if _is_exempt_path(dirpath):
                 continue
             for f in filenames:
-                if f.endswith('.addin.inactive') and f not in protected_inactive:
+                if f.endswith('.addin.disabled') and f not in protected_disabled:
                     src = os.path.join(dirpath, f)
-                    dest = src.replace('.addin.inactive', '.addin')
+                    dest = src.replace('.addin.disabled', '.addin')
                     try:
                         os.rename(src, dest)
                         log.info('Restored: %s', dest)
@@ -377,7 +470,7 @@ def disable_non_required_addins(required_addins, revit_version):
                 if f.endswith('.addin') and f not in keep_files:
                     src = os.path.join(dirpath, f)
                     try:
-                        os.rename(src, src + '.inactive')
+                        os.rename(src, src + '.disabled')
                         log.info('Disabled: %s', src)
                     except (OSError, IOError) as e:
                         log.error('Failed to disable %s: %s', src, e)

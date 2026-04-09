@@ -69,7 +69,7 @@ The profile tab built from a loaded profile is purely tool content. No RESTer bu
 Opened via the Profile Manager button on the Add-ins tab. Admin creates and edits profiles — records tools from the ribbon, assembles the tab layout, configures rules, and exports a profile file to share with users.
 
 **Profile Selector (outside Revit)**
-User adds a profile by navigating to a profile file shared by the admin. RESTer copies it to the install location. User selects which profile to activate — the tool manages `.addin.inactive` renames and records the active profile selection. User then opens Revit.
+User adds a profile by navigating to a profile file shared by the admin. RESTer copies it to the install location. User selects which profile to activate — the tool manages `.addin.disabled` renames and records the active profile selection. User then opens Revit.
 
 ### Admin Flow
 
@@ -200,7 +200,7 @@ Each tool, stack, and panel in the browser sidebar has a hide toggle (–/✕). 
 - **Effect** — at runtime, the extension reads which items are marked hidden and suppresses the corresponding add-in tabs via pyRevit. Only add-in tabs are in scope — native Revit tabs (Architecture, Structure, etc.) are never hidden.
 - **Stored in profile** — hide state per item is written to the profile JSON on export and applied consistently across all users loading that profile.
 
-> **Scope:** Tab autohide is confirmed possible via pyRevit — existing source available as reference implementation. Add-in activate/deactivate via `.addin.inactive` renaming is out of scope for this version. Only tab visibility is managed at this time.
+> **Scope:** Tab autohide is confirmed possible via pyRevit — existing source available as reference implementation. Add-in activate/deactivate via `.addin.disabled` renaming is out of scope for this version. Only tab visibility is managed at this time.
 
 ---
 
@@ -400,7 +400,7 @@ The following questions are unresolved and should be addressed before developmen
 
 - **Q05 — Tab autohide** *(Resolved)* Confirmed possible via pyRevit. Existing source available as reference implementation.
 
-- **Q06 — Load order** *(Resolved)* Not applicable. Add-in activate/deactivate via `.addin.inactive` renaming is out of scope for this version. Tab visibility is managed at runtime via pyRevit; load order does not affect this mechanism.
+- **Q06 — Load order** *(Resolved)* Not applicable. Add-in activate/deactivate via `.addin.disabled` renaming is out of scope for this version. Tab visibility is managed at runtime via pyRevit; load order does not affect this mechanism.
 
 - **Q07 — Installer format** *(Resolved)* pyRevit extension distribution. No custom installer required.
 

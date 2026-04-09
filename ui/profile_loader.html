@@ -465,6 +465,100 @@
     border: 1px solid rgba(245,158,11,0.25);
     color: var(--warn);
   }
+  .addin-status.disabled {
+    background: rgba(245,158,11,0.1);
+    border: 1px solid rgba(245,158,11,0.25);
+    color: var(--warn);
+  }
+
+  /* ── DISABLE TOGGLE ── */
+  .disable-toggle {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    cursor: pointer;
+    margin-right: auto;
+    padding-left: 12px;
+  }
+  .disable-toggle input { width: 14px; height: 14px; cursor: pointer; accent-color: var(--warn); }
+  .disable-toggle span {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.04em;
+    color: var(--text3);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  /* ── CONFIRM OVERLAY ── */
+  .confirm-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 200;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .confirm-overlay.visible { opacity: 1; pointer-events: auto; }
+  .confirm-card {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 28px 32px;
+    max-width: 580px;
+    width: 90%;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+  }
+  .confirm-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text1);
+    margin-bottom: 4px;
+  }
+  .confirm-subtitle {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--text3);
+    margin-bottom: 18px;
+  }
+  .confirm-columns {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 18px;
+  }
+  .confirm-col { flex: 1; }
+  .confirm-col-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .confirm-col-label.staying { color: var(--accent3); }
+  .confirm-col-label.disabling { color: var(--warn); }
+  .confirm-list {
+    max-height: 200px;
+    overflow-y: auto;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--text2);
+    line-height: 1.8;
+  }
+  .confirm-list-item { padding: 2px 0; }
+  .confirm-restart {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    color: var(--text3);
+    margin-bottom: 16px;
+  }
+  .confirm-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
 
   /* ── HIDE RULES ── */
 
@@ -768,7 +862,12 @@
       <div class="detail-footer-left">
         <button class="unload-btn" onclick="unloadProfile()">Unload Profile</button>
         <button class="delete-btn" onclick="confirmRemove()">Delete Profile</button>
+        <button class="unload-btn" id="restoreBtn" onclick="restoreAddins()" style="display:none">Restore All Add-ins</button>
       </div>
+      <label class="disable-toggle" id="disableToggleLabel">
+        <input type="checkbox" id="disableToggle">
+        <span>Disable unused add-ins</span>
+      </label>
       <button class="load-btn" id="loadBtn" onclick="loadProfile()">Load Profile →</button>
     </div>
   </div>
@@ -779,12 +878,35 @@
 <div class="dep-overlay" id="depOverlay">
   <div class="dep-card">
     <div class="dep-title">Missing Dependencies</div>
-    <div class="dep-subtitle">The following add-ins are required by this profile but not detected in your Revit session.</div>
+    <div class="dep-subtitle">The following add-ins are required by this profile but not installed on this machine. Close Revit, install them, then reopen Revit and load this profile.</div>
     <div class="dep-list" id="depList"></div>
     <div class="dep-actions">
       <button class="dep-btn dep-btn-secondary" onclick="closeDep()">Cancel</button>
       <button class="dep-btn dep-btn-secondary" onclick="proceedWithoutDeps()">Continue Anyway</button>
       <button class="dep-btn dep-btn-primary" onclick="openDepHtml()">Open as HTML</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Disable Overlay -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-card">
+    <div class="confirm-title">Confirm Add-in Changes</div>
+    <div class="confirm-subtitle">The following changes will be applied to your add-in files.</div>
+    <div class="confirm-columns">
+      <div class="confirm-col">
+        <div class="confirm-col-label staying">Staying Active</div>
+        <div class="confirm-list" id="confirmStaying"></div>
+      </div>
+      <div class="confirm-col">
+        <div class="confirm-col-label disabling">Will Be Disabled</div>
+        <div class="confirm-list" id="confirmDisabling"></div>
+      </div>
+    </div>
+    <div class="confirm-restart">Revit must restart for changes to take effect.</div>
+    <div class="confirm-actions">
+      <button class="dep-btn dep-btn-secondary" onclick="closeConfirm()">Cancel</button>
+      <button class="dep-btn dep-btn-primary" onclick="confirmDisable()">Confirm &amp; Load</button>
     </div>
   </div>
 </div>
@@ -806,6 +928,7 @@
   let LOADED_ADDINS = [];
   let ALL_TABS = [];
   let previousHiddenTabs = [];
+  let USER_CONFIG = null;  // cached user add-in config
 
   // ── PROFILE DATA ─────────────────────────────────────────────────────────────
   // Full schema matching TabCreator's exportConfig() output.
@@ -818,7 +941,7 @@
   //   min_version    — bare year string ("2024"), compared against selected install
   //   exportDate     — ISO date string
   //   requiredAddins — ribbon tab names (sourceTab values), matched via ADDIN_LOOKUP
-  //   hideRules      — ribbon tab names to suppress at load time (.addin → .addin.inactive)
+  //   hideRules      — ribbon tab names to suppress at load time (.addin → .addin.disabled)
   //   stacks         — dict: stackName → { tools: [{name, commandId}] }
   //   panels         — array: { name, color, slots: [{type, name, icon?, commandId?}] }
   const profiles = [];
@@ -829,6 +952,22 @@
   let currentRevitVersion = null;
 
   // ── HELPERS ───────────────────────────────────────────────────────────────────
+
+  // Normalize requiredAddins — handles both old format (string[]) and new format (object[])
+  // Always returns [{tabName, addinFile, url}]
+  function normalizeRequiredAddins(profile) {
+    var raw = profile.requiredAddins || [];
+    return raw.map(function(entry) {
+      if (typeof entry === 'string') {
+        // Old format: bare tab name string — resolve via ADDIN_LOOKUP
+        var lookup = ADDIN_LOOKUP[entry] || {};
+        return { tabName: entry, addinFile: lookup.file || null, url: lookup.url || '' };
+      }
+      // New format: already an object
+      return { tabName: entry.tabName || '', addinFile: entry.addinFile || null, url: entry.url || '' };
+    });
+  }
+
   function escHtml(s) {
     var d = document.createElement('div');
     d.textContent = s;
@@ -1038,20 +1177,44 @@
 
     // Required add-ins (right column)
     const addinsContainer = document.getElementById('detailAddins');
-    if (profile.requiredAddins && profile.requiredAddins.length > 0) {
+    const normalizedAddins = normalizeRequiredAddins(profile);
+    if (normalizedAddins.length > 0) {
       addinsContainer.innerHTML = `
         <div class="detail-section-label">Required Add-ins for this profile</div>
-        ${profile.requiredAddins.map(tabName => {
+        ${normalizedAddins.map(addin => {
+          const tabName = addin.tabName;
           const native = isNativeTab(tabName);
           const known = ADDIN_LOOKUP[tabName];
           const loaded = isAddinLoaded(tabName);
-          const statusCls   = loaded ? 'present' : 'missing';
-          const statusLabel = native ? 'Native' : (loaded ? 'Loaded' : 'Not Loaded');
           const matchedName = !native && loaded ? getLoadedAddinName(tabName) : '';
-          const fileCol     = native ? 'Revit Built-in' : (matchedName ? escHtml(matchedName) : (known ? known.file : ''));
-          const statusTitle = native
-            ? 'Built-in Revit tab — always available'
-            : (loaded ? 'Loaded in current Revit session' + (matchedName ? ' (' + matchedName + ')' : '') : 'Not detected in current Revit session');
+          const fileCol     = native ? 'Revit Built-in'
+            : addin.addinFile ? escHtml(addin.addinFile)
+            : (matchedName ? escHtml(matchedName) : (known ? known.file : ''));
+
+          // Three-state: check user config for disabled state
+          var configEntry = USER_CONFIG && USER_CONFIG.addins ? USER_CONFIG.addins[tabName] : null;
+          var isDisabled = configEntry && configEntry.enabled === false;
+          var statusCls, statusLabel, statusTitle;
+
+          if (native) {
+            statusCls = 'present';
+            statusLabel = 'Native';
+            statusTitle = 'Built-in Revit tab \u2014 always available';
+          } else if (loaded) {
+            statusCls = 'present';
+            statusLabel = 'Loaded';
+            statusTitle = 'Loaded in current Revit session' + (matchedName ? ' (' + matchedName + ')' : '');
+          } else if (isDisabled) {
+            statusCls = 'disabled';
+            statusLabel = 'Disabled';
+            statusTitle = 'Add-in is disabled (.addin.disabled) \u2014 enable via Restore All Add-ins';
+          } else {
+            statusCls = 'missing';
+            statusLabel = 'Not Installed';
+            var url = addin.url || (known ? known.url : '');
+            statusTitle = url ? 'Not found \u2014 download: ' + url : 'Not detected on this machine';
+          }
+
           return `<div class="addin-row">
             <span class="addin-row-name">${escHtml(tabName)}</span>
             <span class="addin-file">${fileCol}</span>
@@ -1120,20 +1283,32 @@
   // ── DEPENDENCY CHECK ──────────────────────────────────────────────────────────
   var pendingMissingAddins = [];
 
-  function getMissingAddins(profile) {
-    if (!profile.requiredAddins || !profile.requiredAddins.length) return [];
-    return profile.requiredAddins.filter(function(tabName) {
-      return !isNativeTab(tabName) && !isAddinLoaded(tabName);
+  function getDisabledAddins(profile) {
+    // Required add-ins that are on disk but disabled (.addin.disabled)
+    return normalizeRequiredAddins(profile).filter(function(addin) {
+      if (isNativeTab(addin.tabName) || isAddinLoaded(addin.tabName)) return false;
+      var configEntry = USER_CONFIG && USER_CONFIG.addins ? USER_CONFIG.addins[addin.tabName] : null;
+      return configEntry && configEntry.enabled === false;
+    });
+  }
+
+  function getTrulyMissingAddins(profile) {
+    // Required add-ins that are not installed at all (not on disk, not disabled)
+    return normalizeRequiredAddins(profile).filter(function(addin) {
+      if (isNativeTab(addin.tabName) || isAddinLoaded(addin.tabName)) return false;
+      var configEntry = USER_CONFIG && USER_CONFIG.addins ? USER_CONFIG.addins[addin.tabName] : null;
+      if (configEntry && configEntry.enabled === false) return false;
+      return true;
     });
   }
 
   function showDepOverlay(missing) {
     pendingMissingAddins = missing;
     var list = document.getElementById('depList');
-    list.innerHTML = missing.map(function(tabName) {
-      var entry = ADDIN_LOOKUP[tabName];
-      var displayName = entry ? entry.displayName : tabName;
-      var url = entry ? entry.url : '';
+    list.innerHTML = missing.map(function(addin) {
+      var entry = ADDIN_LOOKUP[addin.tabName];
+      var displayName = entry ? entry.displayName : addin.tabName;
+      var url = addin.url || (entry ? entry.url : '');
       var urlHtml = url
         ? '<a class="dep-url" href="' + url + '" target="_blank">' + url + '</a>'
         : '<span class="dep-no-url">URL not available</span>';
@@ -1158,10 +1333,10 @@
 
   function openDepHtml() {
     var profileName = selectedProfile ? selectedProfile.profile : 'Profile';
-    var rows = pendingMissingAddins.map(function(tabName) {
-      var entry = ADDIN_LOOKUP[tabName];
-      var displayName = entry ? entry.displayName : tabName;
-      var url = entry ? entry.url : '';
+    var rows = pendingMissingAddins.map(function(addin) {
+      var entry = ADDIN_LOOKUP[addin.tabName];
+      var displayName = entry ? entry.displayName : addin.tabName;
+      var url = addin.url || (entry ? entry.url : '');
       var urlHtml = url
         ? '<a href="' + url + '" target="_blank" style="color:#4f8ef7">' + url + '</a>'
         : '<span style="color:#888;font-style:italic">URL not available</span>';
@@ -1212,7 +1387,10 @@
   // ── LOAD PROFILE ──────────────────────────────────────────────────────────────
   function doLoadProfile() {
     var hiddenTabs = getSelectedHiddenTabs();
-    window.pywebview.api.load_profile(selectedProfile.profile, false, currentRevitVersion, hiddenTabs).then(function(result) {
+    var disableToggle = document.getElementById('disableToggle');
+    var disableUnused = disableToggle ? disableToggle.checked : false;
+
+    window.pywebview.api.load_profile(selectedProfile.profile, disableUnused, currentRevitVersion, hiddenTabs).then(function(result) {
       if (!result.ok) {
         alert('Failed to load profile.');
         return;
@@ -1220,6 +1398,9 @@
       activeProfileName = selectedProfile.profile;
 
       var lines = [];
+      if (result.restart_needed) {
+        lines.push('Add-ins have been modified. Please restart Revit for changes to take effect.');
+      }
       lines.push('Tab \u201c' + selectedProfile.tab + '\u201d will build on next pyRevit reload.');
       if (result.warnings && result.warnings.length > 0) {
         result.warnings.forEach(function(w) { lines.push(w); });
@@ -1234,12 +1415,99 @@
   function loadProfile() {
     if (!selectedProfile) return;
 
-    var missing = getMissingAddins(selectedProfile);
+    // Check 1: truly missing add-ins (not installed) — block and show download overlay
+    var missing = getTrulyMissingAddins(selectedProfile);
     if (missing.length > 0) {
       showDepOverlay(missing);
       return;
     }
+
+    // Check 2: disabled add-ins (on disk but .addin.disabled) — backend re-enables on load
+
+    // Check if disable toggle is on — show confirmation overlay
+    var disableToggle = document.getElementById('disableToggle');
+    if (disableToggle && disableToggle.checked) {
+      window.pywebview.api.get_disable_preview(selectedProfile.profile).then(function(preview) {
+        if (preview.error) {
+          alert(preview.error);
+          return;
+        }
+        showConfirmOverlay(preview.staying, preview.disabling);
+      }).catch(function(err) {
+        console.error('get_disable_preview error:', err);
+        // Fall through to load without disable
+        doLoadProfile();
+      });
+      return;
+    }
+
     doLoadProfile();
+  }
+
+  // ── CONFIRM DISABLE OVERLAY ─────────────────────────────────────────────────
+  function showConfirmOverlay(staying, disabling) {
+    var stayingList = document.getElementById('confirmStaying');
+    var disablingList = document.getElementById('confirmDisabling');
+
+    stayingList.innerHTML = staying.map(function(info) {
+      return '<div class="confirm-list-item">' + escHtml(info.displayName || info.tabName || 'Unknown') + '</div>';
+    }).join('') || '<div class="confirm-list-item" style="color:var(--text3)">None</div>';
+
+    disablingList.innerHTML = disabling.map(function(info) {
+      return '<div class="confirm-list-item">' + escHtml(info.displayName || info.tabName || 'Unknown') + '</div>';
+    }).join('') || '<div class="confirm-list-item" style="color:var(--text3)">None</div>';
+
+    document.getElementById('confirmOverlay').classList.add('visible');
+  }
+
+  function closeConfirm() {
+    document.getElementById('confirmOverlay').classList.remove('visible');
+  }
+
+  function confirmDisable() {
+    closeConfirm();
+    doLoadProfile();
+  }
+
+  // ── RESTORE ALL ADD-INS ───────────────────────────────────────────────────────
+  function restoreAddins() {
+    if (!confirm('Restore all disabled add-ins?\n\nAll .addin.disabled files will be renamed back to .addin. Revit must restart for changes to take effect.')) return;
+
+    window.pywebview.api.restore_addins().then(function(result) {
+      if (!result.ok) {
+        alert('Failed to restore add-ins: ' + (result.error || 'Unknown error'));
+        return;
+      }
+      // Refresh user config cache
+      window.pywebview.api.get_user_config().then(function(cfg) {
+        USER_CONFIG = cfg;
+        updateRestoreButton();
+        // Re-render current selection to update badges
+        if (selectedProfile) {
+          var idx = profiles.indexOf(selectedProfile);
+          var cards = document.querySelectorAll('.profile-card');
+          if (idx !== -1 && cards[idx]) selectCard(cards[idx], idx);
+        }
+      });
+      showLoadingOverlay('Restore', '\u2022 All add-ins restored. Please restart Revit for changes to take effect.');
+    }).catch(function(err) {
+      alert('Error restoring add-ins: ' + (err.message || err));
+    });
+  }
+
+  function updateRestoreButton() {
+    var btn = document.getElementById('restoreBtn');
+    if (!btn) return;
+    var hasDisabled = false;
+    if (USER_CONFIG && USER_CONFIG.addins) {
+      for (var key in USER_CONFIG.addins) {
+        if (USER_CONFIG.addins[key].enabled === false && USER_CONFIG.addins[key].scope === 'user') {
+          hasDisabled = true;
+          break;
+        }
+      }
+    }
+    btn.style.display = hasDisabled ? 'inline-flex' : 'none';
   }
 
 
@@ -1360,6 +1628,18 @@
         ALL_TABS = tabs;
       }
     }).catch(function(err) { console.error(err); });
+
+    // Fetch user add-in config for three-state badges + restore button
+    window.pywebview.api.get_user_config().then(function(cfg) {
+      USER_CONFIG = cfg;
+      updateRestoreButton();
+      // Re-render selected card if any, to apply three-state badges
+      if (selectedProfile) {
+        var idx = profiles.indexOf(selectedProfile);
+        var cards = document.querySelectorAll('.profile-card');
+        if (idx !== -1 && cards[idx]) selectCard(cards[idx], idx);
+      }
+    }).catch(function(err) { console.error('get_user_config error:', err); });
 
     // Fetch active Revit version
     window.pywebview.api.get_revit_version().then(function(ver) {

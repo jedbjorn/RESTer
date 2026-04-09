@@ -16,6 +16,17 @@ sys.path.insert(0, os.path.join(_root, 'app'))
 from logger import get_logger
 log = get_logger('tab_creator')
 
+from addin_scanner import (
+    load_addin_lookup, get_addins_dirs, _find_all_addin_files,
+    resolve_tab_to_addin,
+)
+from user_config import (
+    get_current_username,
+    load_user_config,
+    save_user_config,
+    build_user_config,
+)
+
 _html_path = os.path.join(_root, 'ui', 'profile_manager.html')
 _profiles_dir = os.path.join(_root, 'app', 'profiles')
 _icons_dir = os.path.join(_root, 'icons')
@@ -135,6 +146,54 @@ class TabCreatorAPI:
         addins = _revit_data.get('loaded_addins', [])
         log.info('Returning %d loaded add-ins', len(addins))
         return addins
+
+    def _get_username(self):
+        return _revit_data.get('revit_username') or get_current_username()
+
+    def get_user_config(self):
+        """Return user add-in config. Builds on first call."""
+        username = self._get_username()
+        version = _revit_data.get('revit_version')
+        if not version:
+            return None
+        config = load_user_config(username, version)
+        if config is None:
+            config = build_user_config(
+                username, version,
+                _revit_data.get('loaded_addins', []),
+                _revit_data.get('all_tabs', []),
+                load_addin_lookup(),
+            )
+            save_user_config(config)
+        return config
+
+    def get_disabled_addins(self):
+        """Return list of disabled add-ins from user config.
+        Used to warn admin at TabCreator launch."""
+        config = self.get_user_config()
+        if not config:
+            return []
+        disabled = []
+        for name, info in config.get('addins', {}).items():
+            if info.get('enabled') is False:
+                disabled.append(info)
+        log.info('Found %d disabled add-ins in admin config', len(disabled))
+        return disabled
+
+    def get_resolved_addins(self):
+        """Cross-reference LoadedApplications against .addin XML files on disk.
+        Returns {tabName: {addinFile, assemblyPath, url}}."""
+        version = _revit_data.get('revit_version')
+        if not version:
+            log.warning('No Revit version — cannot resolve add-ins')
+            return {}
+        loaded = _revit_data.get('loaded_addins', [])
+        lookup = load_addin_lookup()
+        search_dirs = get_addins_dirs(version)
+        fs_addins = _find_all_addin_files(search_dirs)
+        resolved = resolve_tab_to_addin(loaded, fs_addins, lookup)
+        log.info('Resolved %d add-in mappings for TabCreator', len(resolved))
+        return resolved
 
     def get_custom_tools(self):
         if not os.path.exists(_custom_tools_path):
