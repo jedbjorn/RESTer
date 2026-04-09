@@ -75,8 +75,13 @@ RST/                                        ← repo root & install root
 │   ├── active_profile.json                 ← Written by ProfileSelector, read by startup.py (gitignored)
 │   ├── _revit_data.json                    ← Temp: Revit session data for TabCreator (gitignored)
 │   ├── _loader_data.json                   ← Temp: Revit session data for ProfileSelector (gitignored)
-│   └── profiles/                           ← Profile JSON files
-│       └── (*.json)
+│   ├── panel_colors.json                   ← Persistent swatch colors (gitignored)
+│   ├── custom_tools.json                   ← Custom URL tools (gitignored)
+│   ├── profiles/                           ← Profile JSON files
+│   │   └── (*.json)
+│   └── users/                              ← Per-user add-in configs (gitignored, preserved across updates)
+│       ├── {username}_{version}_addins.json
+│       └── {username}_{version}_intent.json
 │
 ├── icons/
 │   ├── RESTer_default.png                  ← Default ribbon button icon (32x32)
@@ -179,18 +184,138 @@ On every Revit launch or pyRevit reload, `startup.py` runs:
 
 ---
 
-## Add-in Detection
+## Add-in Detection & Management
 
-**Detection** uses live Revit session data (`LoadedApplications`), not filesystem scanning. Each UI checks required add-ins against the loaded list with substring matching on names and lookup file stems. Status is "Loaded" or "Not Loaded".
+### Three-Source Scan
 
-**Suppression** (hide rules, disable non-required) still uses filesystem operations — renaming `.addin` ↔ `.addin.inactive` in `%APPDATA%\Autodesk\Revit\Addins\{version}\`.
+On first run per user/version (or when username doesn't match existing config), RST performs a combined scan:
+
+| Source | What it gives us | Speed |
+|--------|-----------------|-------|
+| **AdWindows ribbon scan** (`ComponentManager.Ribbon.Tabs`) | Tab names, command IDs, button names, panel locations | Sub-second (in-memory) |
+| **`__revit__.Application.LoadedApplications`** | DLL paths for every loaded add-in, class/assembly names | Sub-second (in-memory) |
+| **Filesystem `.addin` scan** (`%APPDATA%\...\Addins\{version}\`) | `.addin` manifest paths, cross-referenced with DLL paths from above | 2-3 seconds (disk I/O + XML parsing) |
+
+Total scan time: ~2-5 seconds. Only scans user-scope `%APPDATA%` directory — never touches `%ProgramData%` or `%ProgramFiles%`.
+
+### User Config
+
+Each Revit user + version gets their own config file. Both Profiler and Loader read from the same file.
+
+```
+app/users/
+  {username}_{version}_addins.json    ← scan data + enabled/disabled state
+  {username}_{version}_intent.json    ← pre-rename plan (cleared after reconciliation)
+```
+
+**Config rebuild triggers:**
+- File doesn't exist (first run)
+- Username from `__revit__.Application.Username` doesn't match config
+- Manual rescan (button in Loader)
+
+**Example config:**
+
+```json
+{
+  "username": "jbjornson",
+  "revitVersion": "2025",
+  "scanDate": "2026-04-09",
+  "addins": {
+    "DiRootsOne": {
+      "displayName": "DiRootsOne",
+      "tabName": "DiRootsOne",
+      "addinPath": "C:\\Users\\jbjornson\\AppData\\...\\DiRoots.One.addin",
+      "assemblyPath": "C:\\Program Files\\DiRoots\\...\\DiRootsOne.dll",
+      "scope": "user",
+      "elevated": false,
+      "enabled": true,
+      "url": "https://diroots.com"
+    }
+  }
+}
+```
+
+### Add-in Disable / Enable
+
+**Convention:** matches DiRoots Add-in Manager — `.addin` → `.addin.disabled` / `.addin.disabled` → `.addin`. Users familiar with DiRoots can manually restore if needed.
+
+**Scope rules — what RST will touch:**
+- User-scope add-ins in `%APPDATA%` only — never `%ProgramData%` or `%ProgramFiles%`
+- Never pyRevit or RST itself
+- Never Dynamo or any Dynamo dependencies
+- Never add-ins with no ribbon tab (silent/background add-ins)
+- Never add-ins in `config.json` protected list
+- Add-ins requiring admin elevation are skipped silently
+
+**Three states at profile load time:**
+
+| State | UI indicator | Action |
+|-------|-------------|--------|
+| Loaded + enabled | Green "Loaded" | Nothing needed |
+| Present + disabled | Yellow "Disabled" | Re-enable on load, prompt restart |
+| Not installed | Red "Not Installed" | Show download URL / HTML checklist |
+
+### Disable Flow (Profile Loader)
+
+Toggle: "Disable add-ins not used by this profile" (default OFF).
+
+1. User selects profile, enables toggle
+2. Dependency check — are all required add-ins present?
+3. If missing → dependency overlay (download URLs / Continue Anyway / Open as HTML checklist)
+4. If all present → confirmation UI shows:
+   - **Staying active:** required add-ins + always-exempt add-ins
+   - **Will be disabled:** everything else in user-scope
+5. User confirms
+6. **Intent log written** (`{username}_{version}_intent.json`) — full plan before any renames
+7. RST renames unused `.addin` → `.addin.disabled`
+8. Config updated: `enabled: false` for each disabled add-in
+9. "Please restart Revit for changes to apply" — user confirms
+10. Into loading overlay → profile loads → pyRevit reload
+
+**"Restore All Add-ins" button:**
+1. Renames all `.addin.disabled` → `.addin` in user-scope directory
+2. Config updated: `enabled: true` for all
+3. "Please restart Revit for changes to apply"
+
+### Intent Log & Crash Recovery
+
+Before any rename batch, the full plan is written to the intent log:
+
+```json
+{
+  "timestamp": "2026-04-09T14:30:00",
+  "action": "disable_unused",
+  "profile": "Architecture_2025",
+  "planned": [
+    { "path": "C:\\Users\\...\\Enscape.addin", "from": "enabled", "to": "disabled" },
+    { "path": "C:\\Users\\...\\Lumion.addin", "from": "enabled", "to": "disabled" }
+  ],
+  "completed": []
+}
+```
+
+On next startup.py run:
+1. Check if intent log exists for this user/version
+2. Compare `planned` actions vs actual file states on disk
+3. If mismatch → reconcile (finish the renames to match intended state)
+4. If reconciliation requires restart → inform user
+5. Clear intent log once state is consistent
+
+### Dependency Check at Profile Load
+
+When loading a profile with missing add-ins, a dependency overlay appears before the loading UI:
+
+- Lists each missing add-in with name + download URL (from `addin_lookup.json`)
+- **Cancel** — return to profile selection
+- **Continue Anyway** — skip and load profile despite missing dependencies
+- **Open as HTML** — downloads a styled HTML checklist with checkboxes and clickable download links, then proceeds to load the profile
 
 ---
 
 ## Configuration
 
 ### `lookup/addin_lookup.json`
-Single source of truth for tab name → `.addin` file mapping. Read by both UIs and the Python backend. User-editable — see README for format.
+Seed file for add-in metadata — display names, `.addin` filenames, and download URLs. Read by both UIs. User-specific scan data in `app/users/` overrides this for detection; this file provides URLs and display name fallbacks for add-ins not yet scanned.
 
 ### `lookup/config.json`
 Protected add-ins and exempt paths. User-editable, preserved across updates.
@@ -213,8 +338,11 @@ Protected add-ins and exempt paths. User-editable, preserved across updates.
 |----------|--------|
 | Install method | pyRevit Extension Manager (git URL) — appends `.extension` automatically |
 | IronPython ↔ CPython | Session data passed via temp JSON files, cleaned up after read |
-| Addin detection | Live session (`LoadedApplications`), not filesystem scanning |
-| Addin suppression | Filesystem rename (`.addin` ↔ `.addin.inactive`), user AppData only |
+| Addin detection | Three-source scan: AdWindows ribbon + LoadedApplications + user-scope .addin files |
+| Addin config | Per-user, per-version: `app/users/{username}_{version}_addins.json` — rebuilt on username mismatch |
+| Addin disable | Filesystem rename `.addin` ↔ `.addin.disabled` (DiRoots convention), user AppData only |
+| Addin exemptions | pyRevit, RST, Dynamo + deps, no-ribbon-tab add-ins, protected list, elevated-scope |
+| Crash recovery | Intent log written before renames, reconciled on next startup |
 | Profile re-export | Overwrites existing file (matched by profile name) |
 | Ribbon rebuild | Always rebuild on startup — no mtime cache |
 | Stacks | Vertical RibbonRowPanel (max 3 small buttons), not dropdown |
