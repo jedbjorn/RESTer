@@ -568,6 +568,105 @@
   }
 
   /* ── LOADING OVERLAY ── */
+  /* Dependency overlay */
+  .dep-overlay {
+    position: fixed; inset: 0;
+    background: rgba(15,17,23,0.88);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 999;
+    opacity: 0; transition: opacity 0.2s;
+    pointer-events: none;
+  }
+  .dep-overlay.visible { opacity: 1; pointer-events: auto; }
+  .dep-card {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    padding: 24px 28px;
+    max-width: 500px;
+    width: 90%;
+  }
+  .dep-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--heading);
+    margin-bottom: 6px;
+  }
+  .dep-subtitle {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--text3);
+    margin-bottom: 16px;
+    letter-spacing: 0.04em;
+  }
+  .dep-list {
+    display: flex; flex-direction: column; gap: 8px;
+    margin-bottom: 20px;
+    max-height: 260px;
+    overflow-y: auto;
+  }
+  .dep-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  .dep-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #ef4444;
+    flex-shrink: 0;
+  }
+  .dep-name {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--heading);
+    flex: 1;
+  }
+  .dep-url {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    color: var(--accent);
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+  }
+  .dep-url:hover { text-decoration: underline; }
+  .dep-no-url {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    color: var(--text3);
+    font-style: italic;
+  }
+  .dep-actions {
+    display: flex; gap: 10px; justify-content: flex-end;
+  }
+  .dep-btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    padding: 6px 14px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.04em;
+  }
+  .dep-btn-secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text2);
+  }
+  .dep-btn-secondary:hover { border-color: var(--text2); color: var(--heading); }
+  .dep-btn-primary {
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    color: #fff;
+  }
+  .dep-btn-primary:hover { background: #3b7cf5; }
+
   .loading-overlay {
     position: fixed; inset: 0;
     background: rgba(15,17,23,0.88);
@@ -674,6 +773,20 @@
     </div>
   </div>
 
+</div>
+
+<!-- Dependency Overlay -->
+<div class="dep-overlay" id="depOverlay">
+  <div class="dep-card">
+    <div class="dep-title">Missing Dependencies</div>
+    <div class="dep-subtitle">The following add-ins are required by this profile but not detected in your Revit session.</div>
+    <div class="dep-list" id="depList"></div>
+    <div class="dep-actions">
+      <button class="dep-btn dep-btn-secondary" onclick="closeDep()">Cancel</button>
+      <button class="dep-btn dep-btn-secondary" onclick="proceedWithoutDeps()">Continue Anyway</button>
+      <button class="dep-btn dep-btn-primary" onclick="openDepHtml()">Open as HTML</button>
+    </div>
+  </div>
 </div>
 
 <!-- Loading Overlay -->
@@ -1004,9 +1117,100 @@
     }, 3000);
   }
 
-  function loadProfile() {
-    if (!selectedProfile) return;
+  // ── DEPENDENCY CHECK ──────────────────────────────────────────────────────────
+  var pendingMissingAddins = [];
 
+  function getMissingAddins(profile) {
+    if (!profile.requiredAddins || !profile.requiredAddins.length) return [];
+    return profile.requiredAddins.filter(function(tabName) {
+      return !isNativeTab(tabName) && !isAddinLoaded(tabName);
+    });
+  }
+
+  function showDepOverlay(missing) {
+    pendingMissingAddins = missing;
+    var list = document.getElementById('depList');
+    list.innerHTML = missing.map(function(tabName) {
+      var entry = ADDIN_LOOKUP[tabName];
+      var displayName = entry ? entry.displayName : tabName;
+      var url = entry ? entry.url : '';
+      var urlHtml = url
+        ? '<a class="dep-url" href="' + url + '" target="_blank">' + url + '</a>'
+        : '<span class="dep-no-url">URL not available</span>';
+      return '<div class="dep-item">' +
+        '<div class="dep-dot"></div>' +
+        '<span class="dep-name">' + escHtml(displayName) + '</span>' +
+        urlHtml +
+      '</div>';
+    }).join('');
+    document.getElementById('depOverlay').classList.add('visible');
+  }
+
+  function closeDep() {
+    document.getElementById('depOverlay').classList.remove('visible');
+    pendingMissingAddins = [];
+  }
+
+  function proceedWithoutDeps() {
+    document.getElementById('depOverlay').classList.remove('visible');
+    doLoadProfile();
+  }
+
+  function openDepHtml() {
+    var profileName = selectedProfile ? selectedProfile.profile : 'Profile';
+    var rows = pendingMissingAddins.map(function(tabName) {
+      var entry = ADDIN_LOOKUP[tabName];
+      var displayName = entry ? entry.displayName : tabName;
+      var url = entry ? entry.url : '';
+      var urlHtml = url
+        ? '<a href="' + url + '" target="_blank" style="color:#4f8ef7">' + url + '</a>'
+        : '<span style="color:#888;font-style:italic">URL not available</span>';
+      return '<tr>' +
+        '<td style="padding:10px 14px;border-bottom:1px solid #eee">' +
+          '<input type="checkbox" style="width:16px;height:16px;cursor:pointer">' +
+        '</td>' +
+        '<td style="padding:10px 14px;border-bottom:1px solid #eee;font-weight:600">' + displayName + '</td>' +
+        '<td style="padding:10px 14px;border-bottom:1px solid #eee">' + urlHtml + '</td>' +
+      '</tr>';
+    }).join('');
+
+    var html = '<!DOCTYPE html><html><head><meta charset="utf-8">' +
+      '<title>Missing Dependencies - ' + profileName + '</title>' +
+      '<style>' +
+        'body{font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:700px;margin:40px auto;padding:0 20px;color:#1a1a2e;background:#fafafa}' +
+        'h1{font-size:22px;margin-bottom:4px}' +
+        'p{color:#666;font-size:14px;margin-bottom:24px}' +
+        'table{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08)}' +
+        'th{text-align:left;padding:12px 14px;background:#f5f5f7;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:#666;border-bottom:2px solid #eee}' +
+        'tr:hover td{background:#f8f9ff}' +
+        'input[type=checkbox]:checked+td~td,input[type=checkbox]:checked{opacity:0.5}' +
+        '.footer{margin-top:24px;font-size:12px;color:#999;text-align:center}' +
+      '</style>' +
+      '</head><body>' +
+      '<h1>Missing Dependencies</h1>' +
+      '<p>The following add-ins are required by the <strong>' + profileName + '</strong> profile. Install each one and check it off.</p>' +
+      '<table>' +
+        '<tr><th style="width:40px"></th><th>Add-in</th><th>Download</th></tr>' +
+        rows +
+      '</table>' +
+      '<div class="footer">Generated by RST Profile Loader</div>' +
+      '</body></html>';
+
+    var blob = new Blob([html], { type: 'text/html' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'RST_Missing_Dependencies_' + profileName.replace(/[^a-zA-Z0-9]/g, '_') + '.html';
+    a.click();
+    URL.revokeObjectURL(url);
+
+    // Close dep overlay and proceed to loading
+    document.getElementById('depOverlay').classList.remove('visible');
+    doLoadProfile();
+  }
+
+  // ── LOAD PROFILE ──────────────────────────────────────────────────────────────
+  function doLoadProfile() {
     var hiddenTabs = getSelectedHiddenTabs();
     window.pywebview.api.load_profile(selectedProfile.profile, false, currentRevitVersion, hiddenTabs).then(function(result) {
       if (!result.ok) {
@@ -1025,6 +1229,17 @@
     }).catch(function(err) {
       alert('Error loading profile: ' + (err.message || err));
     });
+  }
+
+  function loadProfile() {
+    if (!selectedProfile) return;
+
+    var missing = getMissingAddins(selectedProfile);
+    if (missing.length > 0) {
+      showDepOverlay(missing);
+      return;
+    }
+    doLoadProfile();
   }
 
 
