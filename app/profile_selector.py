@@ -390,9 +390,10 @@ class ProfileSelectorAPI:
                         warnings.append(tab_name + ' not found. If you experience issues with using tools from this add-in please install for Revit ' + str(ver) + ' and retry.')
 
 
-        # Re-enable disabled required add-ins
+        # Re-enable disabled required add-ins (only when disable toggle is on —
+        # otherwise addin state is managed exclusively via Restore button)
         restart_needed = False
-        if revit_version:
+        if disable_non_required and revit_version:
             username = self._get_username()
             config = load_user_config(username, revit_version)
             if config:
