@@ -177,8 +177,18 @@ def get_installed_commands():
         import traceback
         log.error(traceback.format_exc())
 
-    log.info('Scan complete: %d commands found', len(results))
-    return results
+    # Deduplicate by commandId — same command can appear at multiple
+    # nesting levels (container + child) in the ribbon
+    seen = set()
+    deduped = []
+    for cmd in results:
+        cid = cmd.get('commandId', '')
+        if cid and cid not in seen:
+            seen.add(cid)
+            deduped.append(cmd)
+
+    log.info('Scan complete: %d commands found (%d after dedup)', len(results), len(deduped))
+    return deduped
 
 
 _BUILTIN_TABS = {
