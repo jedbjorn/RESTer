@@ -1885,7 +1885,7 @@
       }
 
       return `
-        <div class="sb-row" data-name="${tool.name}">
+        <div class="sb-row" data-name="${escHtml(tool.name)}">
           <div class="sb-stripe" style="background:transparent"></div>
           <div class="sb-row-body ${isInCurrent ? 'placed' : ''} ${isGreyed ? 'elsewhere' : ''}"
                ${isGreyed ? 'style="pointer-events:auto;cursor:pointer" title="' + escHtml(goToLabel) + '"' : ''}>
@@ -1958,7 +1958,10 @@
       slots.splice(idx, 1);
     } else {
       const tool = state.allTools.find(t => t.name === name);
-      if (!tool) return;
+      if (!tool) {
+        console.warn('[RST] toggleToolInPanel: tool not found in allTools:', JSON.stringify(name));
+        return;
+      }
       slots.push({ type: 'tool', name: tool.name, baseName: tool.baseName || tool.name, icon: tool.icon, commandId: tool.commandId, sourceTab: tool.sourceTab, sourcePanel: tool.sourcePanel });
     }
     renderDetectedAddins();
