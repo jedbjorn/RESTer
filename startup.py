@@ -110,8 +110,8 @@ def _load_active_profile():
 
     # Blank profile — build empty tab with just branding
     if active.get('blank'):
-        log.info('Blank profile — will build empty RST Pro tab')
-        blank_profile = {'tab': 'RST Pro', 'panels': [], 'stacks': {}, 'panelOpacity': 100}
+        log.info('Blank profile — will build empty RSTPro tab')
+        blank_profile = {'tab': 'RSTPro', 'panels': [], 'stacks': {}, 'panelOpacity': 100}
         return active, blank_profile
 
     profile_file = active.get('profile_file')
@@ -263,7 +263,7 @@ def _build_ribbon(profile):
         log.error('AdWindows import failed: %s', e)
         return False
 
-    tab_name = profile.get('tab', 'RST Pro')
+    tab_name = profile.get('tab', 'RSTPro')
     panels = profile.get('panels', [])
     stacks = profile.get('stacks', {})
     panel_opacity = max(10, min(100, profile.get('panelOpacity', 100))) / 100.0
@@ -635,7 +635,7 @@ def _style_rst_admin_panels():
         for tab in ribbon.Tabs:
             try:
                 t_title = str(tab.Title) if tab.Title else ''
-                if t_title != 'RST Pro':
+                if t_title != 'RSTPro':
                     continue
                 for panel in tab.Panels:
                     try:
@@ -730,7 +730,7 @@ def _apply_hidden_tabs():
                     bmp = BitmapImage(Uri(on_icon, UriKind.Absolute))
                     for tab in ribbon.Tabs:
                         try:
-                            if str(tab.Title) != 'RST Pro':
+                            if str(tab.Title) != 'RSTPro':
                                 continue
                             for panel in tab.Panels:
                                 for item in panel.Source.Items:

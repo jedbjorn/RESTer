@@ -2,7 +2,7 @@
   "builtin": "False",
   "default_enabled": "True",
   "type": "extension",
-  "name": "RST Pro",
+  "name": "RSTPro",
   "description": "Custom toolbar profile system for Revit",
   "author": "Designs/OS",
   "author_profile": "https://github.com/jedbjorn",

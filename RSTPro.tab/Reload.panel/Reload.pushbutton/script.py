@@ -11,4 +11,4 @@ if cmd:
     __revit__.PostCommand(cmd)
 else:
     from pyrevit import forms
-    forms.alert('Reload command not found.\nEnsure pyRevit is installed.', title='RST Pro')
+    forms.alert('Reload command not found.\nEnsure pyRevit is installed.', title='RSTPro')
