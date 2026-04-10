@@ -369,7 +369,7 @@ def append_new_addins(config, loaded_addins, all_tabs, addin_lookup, addin_panel
 
     added = []
 
-    # Check tabs from current session
+    # Step 1: check tabs from current session
     for tab_name in (all_tabs or []):
         if tab_name in BUILTIN_TABS:
             continue
@@ -425,7 +425,7 @@ def append_new_addins(config, loaded_addins, all_tabs, addin_lookup, addin_panel
         }
         added.append(tab_name)
 
-    # Check third-party panels on built-in tabs
+    # Step 2: check third-party panels on built-in tabs
     for panel_info in (addin_panels or []):
         panel_name = panel_info.get('name', '')
         if not panel_name or panel_name in existing or panel_name in BUILTIN_TABS:
@@ -482,7 +482,7 @@ def append_new_addins(config, loaded_addins, all_tabs, addin_lookup, addin_panel
         }
         added.append(panel_name)
 
-    # Also check directory for new .addin files not matched to any tab
+    # Step 3: check directory for new .addin files not matched to any tab
     matched_files = set()
     for info in existing.values():
         if info.get('addinFile'):

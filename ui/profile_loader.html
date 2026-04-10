@@ -662,7 +662,7 @@
   }
 
   /* ── OVERLAY BUTTONS ── */
-  .dep-btn {
+  .overlay-btn {
     font-family: 'DM Mono', monospace;
     font-size: 10px;
     padding: 6px 14px;
@@ -671,18 +671,18 @@
     transition: all 0.15s;
     letter-spacing: 0.04em;
   }
-  .dep-btn-secondary {
+  .overlay-btn-secondary {
     background: transparent;
     border: 1px solid var(--border);
     color: var(--text2);
   }
-  .dep-btn-secondary:hover { border-color: var(--text2); color: var(--heading); }
-  .dep-btn-primary {
+  .overlay-btn-secondary:hover { border-color: var(--text2); color: var(--heading); }
+  .overlay-btn-primary {
     background: var(--accent);
     border: 1px solid var(--accent);
     color: #fff;
   }
-  .dep-btn-primary:hover { background: #3b7cf5; }
+  .overlay-btn-primary:hover { background: #3b7cf5; }
 
 </style>
 </head>
@@ -799,8 +799,8 @@
     </div>
     <div class="confirm-restart">Revit must restart for changes to take effect.</div>
     <div class="confirm-actions">
-      <button class="dep-btn dep-btn-secondary" onclick="closeConfirm()">Cancel</button>
-      <button class="dep-btn dep-btn-primary" onclick="confirmDisable()">Confirm &amp; Load</button>
+      <button class="overlay-btn overlay-btn-secondary" onclick="closeConfirm()">Cancel</button>
+      <button class="overlay-btn overlay-btn-primary" onclick="confirmDisable()">Confirm &amp; Load</button>
     </div>
   </div>
 </div>

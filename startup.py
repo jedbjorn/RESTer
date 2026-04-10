@@ -19,8 +19,8 @@ from user_config import read_intent_log, clear_intent_log
 
 from rst_lib import ACTIVE_PROFILE_PATH, PROFILES_DIR, ICONS_DIR
 
-_default_icon_32 = os.path.join(ICONS_DIR, 'RESTer_default.png')
-_default_icon_16 = os.path.join(ICONS_DIR, 'RESTer_default_16.png')
+_default_icon_32 = os.path.join(ICONS_DIR, 'default_32.png')
+_default_icon_16 = os.path.join(ICONS_DIR, 'default_16.png')
 
 
 def _reconcile_intent_log():
@@ -175,27 +175,6 @@ def _load_icon(icon_path):
     except Exception as e:
         log.debug('Could not load icon %s: %s', icon_path, e)
     return None
-
-
-def _load_icon_sized(icon_path, width, height):
-    """Load a PNG and force it to a specific pixel size via DecodePixelWidth/Height."""
-    try:
-        import clr
-        clr.AddReference('PresentationCore')
-        from System.Windows.Media.Imaging import BitmapImage, BitmapCacheOption
-        from System import Uri, UriKind
-        if icon_path and os.path.exists(icon_path):
-            bmp = BitmapImage()
-            bmp.BeginInit()
-            bmp.UriSource = Uri(os.path.abspath(icon_path), UriKind.Absolute)
-            bmp.DecodePixelWidth = width
-            bmp.DecodePixelHeight = height
-            bmp.CacheOption = BitmapCacheOption.OnLoad
-            bmp.EndInit()
-            return bmp
-    except Exception as e:
-        log.debug('Could not load sized icon %s: %s', icon_path, e)
-    return _load_icon(icon_path)
 
 
 def _hex_to_color(hex_str, alpha=1.0):
