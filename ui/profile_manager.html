@@ -1952,11 +1952,18 @@
     const inAnyStack = Object.values(state.stacks).some(s => s.tools.includes(name));
     if (inAnyStack) return;
 
+    const MAX_TOOLS_PER_TAB = 40;
     const slots = state.panels[state.currentPanel].slots;
     const idx   = slots.findIndex(s => s.type === 'tool' && s.name === name);
     if (idx !== -1) {
       slots.splice(idx, 1);
     } else {
+      // Check total tool count across all panels
+      const totalTools = Object.values(state.panels).reduce((sum, p) => sum + p.slots.length, 0);
+      if (totalTools >= MAX_TOOLS_PER_TAB) {
+        showToast('Limit reached', 'Maximum ' + MAX_TOOLS_PER_TAB + ' tools per tab.');
+        return;
+      }
       const tool = state.allTools.find(t => t.name === name);
       if (!tool) {
         console.warn('[RST] toggleToolInPanel: tool not found in allTools:', JSON.stringify(name));
