@@ -540,12 +540,23 @@
   .confirm-list {
     max-height: 200px;
     overflow-y: auto;
+    overflow-x: hidden;
     font-family: 'DM Mono', monospace;
     font-size: 10px;
     color: var(--text2);
     line-height: 1.8;
+    direction: rtl;
   }
-  .confirm-list-item { padding: 2px 0; }
+  .confirm-list::-webkit-scrollbar { width: 3px; }
+  .confirm-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .confirm-list-item {
+    padding: 2px 0;
+    direction: ltr;
+    max-width: 20ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .confirm-restart {
     font-family: 'DM Mono', monospace;
     font-size: 9px;

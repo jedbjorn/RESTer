@@ -204,8 +204,11 @@ class ProfileSelectorAPI:
 
             is_required = tab_name in required or name in required
             is_protected = info.get('protected', False) or addin_file in protected_lower
+            is_autodesk = info.get('autodesk', False)
 
-            if is_required or is_protected:
+            if is_protected or is_autodesk:
+                continue  # always protected — don't clutter the overlay
+            elif is_required:
                 staying.append(info)
             elif info.get('scope') != 'user':
                 entry = dict(info)
