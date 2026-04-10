@@ -1277,7 +1277,12 @@
       window.pywebview.api.get_user_config().then(function(cfg) {
         USER_CONFIG = cfg;
       });
-      RSTmsgInform('Add-ins Restored', 'All add-ins restored. Restart Revit for changes to take effect.');
+      var names = result.restored || [];
+      if (names.length > 0) {
+        RSTmsgInform('Please Restart Revit', 'After restart, the following add-ins will be restored: ' + names.join(', '));
+      } else {
+        RSTmsgInform('No Changes', 'No disabled add-ins found to restore.');
+      }
     }).catch(function(err) {
       RSTmsgInform('Error', 'Error restoring add-ins: ' + (err.message || err));
     });

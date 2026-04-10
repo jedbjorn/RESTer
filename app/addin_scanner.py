@@ -414,10 +414,11 @@ def apply_hide_rules(hide_rules, revit_version):
 
 def restore_all_addins(revit_version):
     """Sweep all addins directories for .addin.RSTdisabled and rename back to .addin.
-    Config-independent — purely filesystem-based recovery."""
+    Config-independent — purely filesystem-based recovery.
+    Returns list of restored addin filenames."""
     log.info('Restoring all RST-disabled addins for Revit %s', revit_version)
     search_dirs = get_addins_dirs(revit_version)
-    restored = 0
+    restored = []
 
     for base_dir in search_dirs:
         if not os.path.isdir(base_dir):
@@ -428,12 +429,13 @@ def restore_all_addins(revit_version):
                 dest = src.replace('.addin.RSTdisabled', '.addin')
                 try:
                     os.rename(src, dest)
-                    restored += 1
+                    restored.append(f.replace('.addin.RSTdisabled', ''))
                     log.info('Restored: %s', dest)
                 except (OSError, IOError) as e:
                     log.error('Failed to restore %s: %s', src, e)
 
-    log.info('Restored %d add-ins', restored)
+    log.info('Restored %d add-ins', len(restored))
+    return restored
 
 
 def disable_non_required_addins(required_addins, revit_version):

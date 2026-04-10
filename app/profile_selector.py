@@ -236,7 +236,7 @@ class ProfileSelectorAPI:
             write_intent_log(username, version, 'restore_all', None, [])
 
             # Sweep filesystem for .RSTdisabled files and rename back
-            restore_all_addins(version)
+            restored_names = restore_all_addins(version)
 
             # Clean slate: rebuild user config from current state
             config = build_user_config(
@@ -249,7 +249,7 @@ class ProfileSelectorAPI:
             save_user_config(config)
 
             clear_intent_log(username, version)
-            return {'ok': True, 'restart_needed': True}
+            return {'ok': True, 'restart_needed': True, 'restored': restored_names}
         except Exception as e:
             import traceback
             log.error('Error in restore_addins:\n%s', traceback.format_exc())
