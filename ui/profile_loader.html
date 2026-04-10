@@ -757,17 +757,11 @@
         <button class="delete-btn" onclick="confirmRemove()">Delete Profile</button>
       </div>
       <div class="footer-toggles">
-        <div class="footer-toggle">
-          <span class="footer-toggle-label">Restore all add-ins</span>
-          <label class="tab-toggle-switch">
-            <input type="checkbox" id="restoreToggle" onchange="onRestoreToggle(this)">
-            <div class="tab-toggle-track"><div class="tab-toggle-thumb"></div></div>
-          </label>
-        </div>
+        <button class="unload-btn" onclick="restoreAddins()">Restore All Add-ins</button>
         <div class="footer-toggle">
           <span class="footer-toggle-label">Disable unused add-ins</span>
           <label class="tab-toggle-switch">
-            <input type="checkbox" id="disableToggle" onchange="onDisableToggle(this)">
+            <input type="checkbox" id="disableToggle">
             <div class="tab-toggle-track"><div class="tab-toggle-thumb"></div></div>
           </label>
         </div>
@@ -1272,44 +1266,25 @@
 
   // ── FOOTER TOGGLE HANDLERS ─────────────────────────────────────────────────
 
-  function onRestoreToggle(el) {
-    if (el.checked) {
-      // Turning restore on disables the disable toggle
-      document.getElementById('disableToggle').checked = false;
-      // Restore immediately — user sees result without needing to click Load
-      restoreAddins();
-    }
-  }
-
-  function onDisableToggle(el) {
-    if (el.checked) {
-      // Turning disable on disables the restore toggle
-      document.getElementById('restoreToggle').checked = false;
-    }
-  }
 
   function restoreAddins() {
     window.pywebview.api.restore_addins().then(function(result) {
       if (!result.ok) {
         RSTmsgInform('Restore Failed', 'Failed to restore add-ins: ' + (result.error || 'Unknown error'));
-        document.getElementById('restoreToggle').checked = false;
         return;
       }
-      // Refresh user config cache
+      // Refresh user config cache and re-render badges (don't touch tab toggles)
       window.pywebview.api.get_user_config().then(function(cfg) {
         USER_CONFIG = cfg;
-        // Re-render current selection to update badges
         if (selectedProfile) {
           var idx = profiles.indexOf(selectedProfile);
           var cards = document.querySelectorAll('.profile-card');
           if (idx !== -1 && cards[idx]) selectCard(cards[idx], idx);
         }
       });
-      document.getElementById('restoreToggle').checked = false;
       RSTmsgInform('Add-ins Restored', 'All add-ins restored. Restart Revit for changes to take effect.');
     }).catch(function(err) {
       RSTmsgInform('Error', 'Error restoring add-ins: ' + (err.message || err));
-      document.getElementById('restoreToggle').checked = false;
     });
   }
 
@@ -1419,6 +1394,8 @@
         if (result && result.name) {
           activeProfileName = result.name;
           previousHiddenTabs = result.hidden_tabs || [];
+          var disableToggle = document.getElementById('disableToggle');
+          if (disableToggle) disableToggle.checked = !!result.disable_non_required;
           renderCards();
           var idx = profiles.findIndex(function(p) { return p.profile === result.name; });
           var cards = document.querySelectorAll('.profile-card');

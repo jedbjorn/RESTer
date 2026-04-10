@@ -275,17 +275,18 @@ class ProfileSelectorAPI:
     def get_active_profile(self):
         if not os.path.exists(ACTIVE_PROFILE_PATH):
             log.debug('No active_profile.json found')
-            return {'name': None, 'hidden_tabs': []}
+            return {'name': None, 'hidden_tabs': [], 'disable_non_required': False}
         try:
             with open(ACTIVE_PROFILE_PATH, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             name = data.get('profile')
             hidden = data.get('hidden_tabs', [])
-            log.info('Active profile: %s (hidden: %d tabs)', name, len(hidden))
-            return {'name': name, 'hidden_tabs': hidden}
+            disable = data.get('disable_non_required', False)
+            log.info('Active profile: %s (hidden: %d tabs, disable=%s)', name, len(hidden), disable)
+            return {'name': name, 'hidden_tabs': hidden, 'disable_non_required': disable}
         except (json.JSONDecodeError, IOError) as e:
             log.error('Failed to read active_profile.json: %s', e)
-            return {'name': None, 'hidden_tabs': []}
+            return {'name': None, 'hidden_tabs': [], 'disable_non_required': False}
 
     def add_profile(self):
         log.info('Opening file dialog for profile import')
