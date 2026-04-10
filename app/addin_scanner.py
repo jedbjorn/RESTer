@@ -10,7 +10,7 @@ log = get_logger('addin_scanner')
 BUILTIN_TABS = {
     'Architecture', 'Structure', 'Systems', 'Steel', 'Precast',
     'Insert', 'Annotate', 'Analyze', 'Massing & Site', 'Collaborate',
-    'View', 'Manage', 'Modify', 'Add-Ins', 'Create', 'RST',
+    'View', 'Manage', 'Modify', 'Add-Ins', 'Create', 'RST Pro',
     'FormIt', 'FormIt Converter', 'eTransmit',
     'Modify | Walls', 'Modify | Floors', 'Modify | Roofs',
     'Modify | Structural Framing', 'Modify | Generic Models',
