@@ -1385,6 +1385,7 @@
     <div class="editor">
       <div class="editor-bar">
         <span class="editor-bar-title">Panel / Tab Editor</span>
+        <span id="toolCountDisplay" style="font-family:'Syne',sans-serif;font-weight:700;font-size:11px;letter-spacing:0.07em;color:var(--accent3);margin-left:auto"></span>
       </div>
 
       <div class="editor-body">
@@ -1518,6 +1519,17 @@
   // ── RESOLVED ADD-INS (assembly cross-reference: tab → .addin file) ────────
   // {tabName: {addinFile, assemblyPath, url}} — definitive mapping from session
   let RESOLVED_ADDINS = {};
+
+  var MAX_TOOLS_PER_TAB = 40;
+
+  function updateToolCount() {
+    var total = Object.values(state.panels).reduce(function(sum, p) { return sum + p.slots.length; }, 0);
+    var el = document.getElementById('toolCountDisplay');
+    if (el) {
+      el.textContent = total + '/' + MAX_TOOLS_PER_TAB + ' TOOLS';
+      el.style.color = total >= MAX_TOOLS_PER_TAB ? 'var(--warn)' : 'var(--accent3)';
+    }
+  }
 
   var BUILTIN_TABS = new Set([
     'Architecture', 'Structure', 'Systems', 'Steel', 'Precast',
@@ -1673,6 +1685,7 @@
            </div>`);
       }
     });
+    updateToolCount();
   }
 
   // ── DETECTED ADD-INS (derived, read-only) ─────────────────────────────────
@@ -1952,7 +1965,6 @@
     const inAnyStack = Object.values(state.stacks).some(s => s.tools.includes(name));
     if (inAnyStack) return;
 
-    const MAX_TOOLS_PER_TAB = 40;
     const slots = state.panels[state.currentPanel].slots;
     const idx   = slots.findIndex(s => s.type === 'tool' && s.name === name);
     if (idx !== -1) {
