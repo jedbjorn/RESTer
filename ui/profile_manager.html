@@ -2059,31 +2059,43 @@
     var list = document.getElementById('toolList');
     list.innerHTML = '<div style="color:var(--text3);font-family:\'DM Mono\',monospace;font-size:10px;padding:10px 14px;letter-spacing:0.06em">Detecting tools...</div>';
 
-    window.pywebview.api.get_installed_commands().then(function(cmds) {
-      if (Array.isArray(cmds) && cmds.length > 0) {
-        // Preserve custom URL tools across detect
-        var customTools = state.allTools.filter(function(t) { return t.sourceTab === 'Custom'; });
-        var existingIds = {};
-        state.allTools.forEach(function(t) { existingIds[t.commandId] = true; });
-        cmds.forEach(function(cmd) {
-          if (cmd.commandId && !existingIds[cmd.commandId]) {
-            state.allTools.push({
-              name:      cmd.name,
-              baseName:  cmd.baseName || cmd.name,
-              icon:      cmd.icon || '',
-              sourceTab: cmd.sourceTab || null,
-              sourcePanel: cmd.sourcePanel || null,
-              commandId: cmd.commandId,
-            });
-          }
-        });
-        // Re-append any custom URL tools that may have been lost
-        customTools.forEach(function(ct) {
-          if (!state.allTools.find(function(t) { return t.commandId === ct.commandId && t.sourceTab === 'Custom'; })) {
-            state.allTools.push(ct);
-          }
-        });
-      }
+    // Load ribbon commands and custom URL tools in parallel, merge once
+    var cmdsPromise = window.pywebview.api.get_installed_commands();
+    var customPromise = (window.pywebview.api.get_custom_tools)
+      ? window.pywebview.api.get_custom_tools()
+      : Promise.resolve([]);
+
+    Promise.all([cmdsPromise, customPromise]).then(function(results) {
+      var cmds = results[0] || [];
+      var custom = results[1] || [];
+
+      // Build set of existing commandIds to deduplicate
+      var seenIds = {};
+      state.allTools.forEach(function(t) { seenIds[t.commandId] = true; });
+
+      // Add ribbon commands
+      cmds.forEach(function(cmd) {
+        if (cmd.commandId && !seenIds[cmd.commandId]) {
+          seenIds[cmd.commandId] = true;
+          state.allTools.push({
+            name:      cmd.name,
+            baseName:  cmd.baseName || cmd.name,
+            icon:      cmd.icon || '',
+            sourceTab: cmd.sourceTab || null,
+            sourcePanel: cmd.sourcePanel || null,
+            commandId: cmd.commandId,
+          });
+        }
+      });
+
+      // Add custom URL tools (single entry point — no duplicates)
+      custom.forEach(function(ct) {
+        if (ct.commandId && !seenIds[ct.commandId]) {
+          seenIds[ct.commandId] = true;
+          state.allTools.push(ct);
+        }
+      });
+
       renderToolList();
       renderDetectedAddins();
       showToast('Detect', 'Found ' + state.allTools.length + ' tools');
@@ -3660,20 +3672,7 @@
       }
     } catch(e) { /* ignore */ }
 
-    try {
-      // Load persistent custom URL tools
-      if (window.pywebview && window.pywebview.api && window.pywebview.api.get_custom_tools) {
-        const custom = await window.pywebview.api.get_custom_tools();
-        if (Array.isArray(custom)) {
-          custom.forEach(function(ct) {
-            if (!state.allTools.find(function(t) { return t.commandId === ct.commandId && t.sourceTab === 'Custom'; })) {
-              state.allTools.push(ct);
-            }
-          });
-          renderToolList();
-        }
-      }
-    } catch(e) { /* ignore */ }
+    // Custom URL tools are loaded inside detectTools() to avoid duplicates
 
     try {
       // Load panel color swatches from config
