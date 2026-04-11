@@ -261,14 +261,11 @@ def build_user_config(username, version, loaded_addins, all_tabs, addin_lookup,
         loaded_entry = loaded_by_name.get(tab_name.lower(), {})
         assembly_path = loaded_entry.get('assembly')
 
-        # Resolve addin filename: lookup first, then fuzzy match in directory
+        # Resolve addin filename: lookup first, then DLL path from session
         addin_file = expected_file
-        if not addin_file:
-            tab_compact = tab_name.lower().replace(' ', '')
-            for fname_lower in dir_files:
-                if tab_compact in fname_lower.replace(' ', '') and fname_lower.endswith('.addin'):
-                    addin_file = os.path.basename(dir_files[fname_lower])
-                    break
+        if not addin_file and assembly_path:
+            norm_assembly = os.path.normpath(assembly_path).lower()
+            addin_file = dll_to_addin.get(norm_assembly)
 
         # Check enabled/disabled state via directory listing
         addin_path = None
@@ -441,12 +438,9 @@ def append_new_addins(config, loaded_addins, all_tabs, addin_lookup, addin_panel
         assembly_path = loaded_entry.get('assembly')
 
         addin_file = expected_file
-        if not addin_file:
-            tab_compact = tab_name.lower().replace(' ', '')
-            for fname_lower in dir_files:
-                if tab_compact in fname_lower.replace(' ', '') and fname_lower.endswith('.addin'):
-                    addin_file = os.path.basename(dir_files[fname_lower])
-                    break
+        if not addin_file and assembly_path:
+            norm_assembly = os.path.normpath(assembly_path).lower()
+            addin_file = dll_to_addin.get(norm_assembly)
 
         addin_path = None
         enabled = True
