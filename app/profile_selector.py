@@ -14,6 +14,7 @@ from rst_lib import (
     REQUIRED_PROFILE_FIELDS, validate_profile,
     safe_filename, find_profile, resolve_profile,
     ensure_profile_id, is_active_profile,
+    match_addins,
 )
 
 _html_path = os.path.join(UI_DIR, 'profile_loader.html')
@@ -179,31 +180,37 @@ class ProfileSelectorAPI:
         if not profile_data:
             return {'staying': [], 'disabling': [], 'error': 'Profile not found'}
 
-        required = set(_get_required_tab_names(profile_data))
-        lookup = load_addin_lookup()
-
         # The profile's own tab is RST-built — never disable it
         profile_tab = profile_data.get('tab', '')
 
-        # Also resolve required add-in filenames for protected check
-        required_files = set()
-        for tab_name in required:
-            entry = lookup.get(tab_name)
-            if entry:
-                required_files.add(entry.get('file', '').lower())
+        # Resolve profile's required and protected add-ins against local machine
+        local_addins = config.get('addins', {})
+        required_list = profile_data.get('requiredAddins', [])
+        protected_list = profile_data.get('protectedAddins', [])
+
+        # Match required add-ins to local names
+        required_results = match_addins(required_list, local_addins)
+        required_local = set()
+        for tab_name, result in required_results.items():
+            if result['local_name']:
+                required_local.add(result['local_name'])
+
+        # Match protected add-ins to local names
+        protected_entries = [{'tabName': n} if isinstance(n, str) else n for n in protected_list]
+        protected_results = match_addins(protected_entries, local_addins)
+        protected_local = set()
+        for tab_name, result in protected_results.items():
+            if result['local_name']:
+                protected_local.add(result['local_name'])
 
         staying = []
         disabling = []
         skipped = []
 
-        # Protected add-ins come from the profile
-        profile_protected = set(profile_data.get('protectedAddins', []))
-
-        for name, info in config.get('addins', {}).items():
+        for name, info in local_addins.items():
             if not info.get('enabled', True):
                 continue  # already disabled, skip
 
-            addin_file = (info.get('addinFile') or '').lower()
             tab_name = info.get('tabName', '')
 
             # Skip the profile's own RST-built tab entirely
@@ -213,8 +220,8 @@ class ProfileSelectorAPI:
             if info.get('locked', False):
                 continue  # system-locked — hidden from all lists
 
-            is_required = tab_name in required or name in required
-            is_protected = name in profile_protected or tab_name in profile_protected
+            is_required = name in required_local
+            is_protected = name in protected_local
 
             if is_protected or is_required:
                 staying.append(info)
@@ -380,32 +387,31 @@ class ProfileSelectorAPI:
         if not revit_version:
             warnings.append('No Revit version detected — add-in checks will be skipped')
         else:
-            # Check required addins against loaded session data
+            # Check required addins against local machine using three-tier matching
             required = profile_data.get('requiredAddins', [])
-            if required and self._loaded_addins:
-                loaded_names = [a.get('name', '').lower() for a in self._loaded_addins]
-                lookup = load_addin_lookup()
+            config = load_user_config(self._get_username(), revit_version)
+            local_addins = config.get('addins', {}) if config else {}
+
+            if required and local_addins:
+                # Filter out native entries before matching
+                match_list = []
                 for entry in required:
                     if isinstance(entry, dict):
-                        tab_name = entry.get('tabName', '')
-                        if not tab_name or entry.get('native'):
+                        if entry.get('native'):
                             continue
+                        tab_name = entry.get('tabName', '')
                     elif isinstance(entry, str):
                         tab_name = entry
                     else:
                         continue
-                    if tab_name in BUILTIN_TABS:
-                        continue
-                    tab_lower = tab_name.lower()
-                    found = any(tab_lower in n for n in loaded_names)
-                    if not found:
-                        entry = lookup.get(tab_name)
-                        if entry:
-                            stem = entry.get('file', '').replace('.addin', '').lower()
-                            found = any(stem in n for n in loaded_names)
-                    if not found:
+                    if tab_name and tab_name not in BUILTIN_TABS:
+                        match_list.append(entry)
+
+                results = match_addins(match_list, local_addins)
+                for tab_name, result in results.items():
+                    if result['match'] == 'not_found':
                         ver = revit_version or 'your version'
-                        warnings.append(tab_name + ' not found. If you experience issues with using tools from this add-in please install for Revit ' + str(ver) + ' and retry.')
+                        warnings.append(tab_name + ' not found on this machine. Install for Revit ' + str(ver) + ' and retry if needed.')
 
 
         # Re-enable disabled required add-ins (only when disable toggle is on —
@@ -442,6 +448,20 @@ class ProfileSelectorAPI:
             username = self._get_username()
             required = _get_required_tab_names(profile_data)
 
+            # Resolve protected addin filenames from profile
+            protected_files = set()
+            protected_list = profile_data.get('protectedAddins', [])
+            config = load_user_config(username, revit_version)
+            if config and protected_list:
+                local_addins = config.get('addins', {})
+                protected_entries = [{'tabName': n} if isinstance(n, str) else n for n in protected_list]
+                prot_results = match_addins(protected_entries, local_addins)
+                for _, result in prot_results.items():
+                    if result['local_name']:
+                        addin_file = local_addins[result['local_name']].get('addinFile', '')
+                        if addin_file:
+                            protected_files.add(addin_file)
+
             # Build planned operations list from preview
             preview = self.get_disable_preview(profile_name)
             planned = []
@@ -458,8 +478,8 @@ class ProfileSelectorAPI:
                 # Write intent log BEFORE any renames
                 write_intent_log(username, revit_version, 'disable_unused', profile_name, planned)
 
-                # Perform the renames
-                disable_non_required_addins(required, revit_version)
+                # Perform the renames — pass protected files from profile
+                disable_non_required_addins(required, revit_version, protected_addins=protected_files)
 
                 # Update user config
                 config = load_user_config(username, revit_version)

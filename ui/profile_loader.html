@@ -1000,6 +1000,18 @@
     const count  = document.getElementById('profileCount');
     count.textContent = profiles.length;
 
+    if (profiles.length === 0) {
+      scroll.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;padding:30px 20px;text-align:center">
+          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text2)">No profiles found</div>
+          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--text3);line-height:1.5">
+            Create a profile in the Profiler, or import an existing one.
+          </div>
+          <button class="add-profile-btn" onclick="addProfile()" style="margin-top:4px">+ Import Profile from File</button>
+        </div>`;
+      return;
+    }
+
     scroll.innerHTML = profiles.map((p, i) => `
       <div class="profile-card ${_isActiveProfile(p) ? 'active-profile' : ''}"
            data-idx="${i}" onclick="selectCard(this, ${i})">
