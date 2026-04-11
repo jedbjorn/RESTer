@@ -3166,6 +3166,8 @@
             item.classList.add('selected');
             slot.iconFile = 'pack:' + entry.name;
             renderSlotList();
+            renderMockPreview();
+            renderTabCanvas();
             showToast('Icon set', slot.name + ' → ' + entry.name);
             closeIconPack();
           };
@@ -3182,6 +3184,8 @@
     if (slot) {
       delete slot.iconFile;
       renderSlotList();
+      renderMockPreview();
+      renderTabCanvas();
       showToast('Icon cleared', slot.name);
     }
     closeIconPack();
