@@ -215,16 +215,18 @@ def build_user_config(username, version, loaded_addins, all_tabs, addin_lookup,
     No recursive scan. No XML parsing.
     addin_lookup provides display names and URLs as fallback metadata.
     """
-    from addin_scanner import BUILTIN_TABS, classify_addin_origin, parse_addin_ids, get_addins_dirs, _find_all_addin_files
+    from addin_scanner import BUILTIN_TABS, classify_addin_origin, parse_addin_ids, parse_addin_assemblies, get_addins_dirs, _find_all_addin_files
 
     log.info('Building user config for %s / Revit %s', username, version)
 
     # Step 1: list user + machine addins directories
     dir_files, user_addins_dir = _list_addins_dirs(version)
 
-    # Parse AddInIds from .addin XML files
+    # Parse AddInIds and assembly-to-addin mappings from .addin XML files
     search_dirs = get_addins_dirs(version)
-    addin_id_map = parse_addin_ids(_find_all_addin_files(search_dirs)) if search_dirs else {}
+    all_addin_files = _find_all_addin_files(search_dirs) if search_dirs else {}
+    addin_id_map = parse_addin_ids(all_addin_files) if all_addin_files else {}
+    dll_to_addin = parse_addin_assemblies(all_addin_files) if all_addin_files else {}
 
     # Determine scope helper: is this path in user AppData?
     appdata_lower = (os.environ.get('APPDATA', '') or '').lower()
@@ -308,14 +310,13 @@ def build_user_config(username, version, loaded_addins, all_tabs, addin_lookup,
         display_name = lookup_entry.get('displayName', panel_name)
         url = lookup_entry.get('url', '')
         expected_file = lookup_entry.get('file')
+        assembly_path = panel_info.get('assembly')
 
+        # Primary: resolve via assembly DLL path from LoadedApplications
         addin_file = expected_file
-        if not addin_file:
-            panel_compact = panel_name.lower().replace(' ', '')
-            for fname_lower in dir_files:
-                if panel_compact in fname_lower.replace(' ', '') and fname_lower.endswith('.addin'):
-                    addin_file = os.path.basename(dir_files[fname_lower])
-                    break
+        if not addin_file and assembly_path:
+            norm_assembly = os.path.normpath(assembly_path).lower()
+            addin_file = dll_to_addin.get(norm_assembly)
 
         # Skip panels with no resolved addin file and no lookup entry —
         # these are native Revit ribbon panels, not third-party add-ins
@@ -342,11 +343,11 @@ def build_user_config(username, version, loaded_addins, all_tabs, addin_lookup,
         addins[panel_name] = build_addin_entry(
             display_name=display_name, tab_name=panel_info.get('sourceTab'),
             addin_file=addin_file, addin_path=addin_path,
-            assembly_path=None, scope=scope, enabled=enabled,
+            assembly_path=assembly_path, scope=scope, enabled=enabled,
             is_protected=is_protected,
             origin=classify_addin_origin(
                 addin_file=addin_file, lookup_entry=lookup_entry,
-                tab_name=panel_name),
+                assembly_path=assembly_path, tab_name=panel_name),
             lookup_entry=lookup_entry,
             addin_id=addin_id_map.get(addin_file, ''))
 
@@ -399,7 +400,7 @@ def build_user_config(username, version, loaded_addins, all_tabs, addin_lookup,
 def append_new_addins(config, loaded_addins, all_tabs, addin_lookup, addin_panels=None):
     """Check current Revit session against config and append any new add-ins.
     Never removes or rebuilds — only adds. Preserves enabled/disabled state."""
-    from addin_scanner import BUILTIN_TABS, classify_addin_origin, parse_addin_ids, get_addins_dirs, _find_all_addin_files
+    from addin_scanner import BUILTIN_TABS, classify_addin_origin, parse_addin_ids, parse_addin_assemblies, get_addins_dirs, _find_all_addin_files
 
     existing = config.get('addins', {})
     version = config.get('revitVersion', '')
@@ -409,9 +410,11 @@ def append_new_addins(config, loaded_addins, all_tabs, addin_lookup, addin_panel
     # Get current directory listing
     dir_files, _ = _list_addins_dirs(version)
 
-    # Parse AddInIds from .addin XML files
+    # Parse AddInIds and assembly mappings from .addin XML files
     search_dirs = get_addins_dirs(version)
-    addin_id_map = parse_addin_ids(_find_all_addin_files(search_dirs)) if search_dirs else {}
+    all_addin_files = _find_all_addin_files(search_dirs) if search_dirs else {}
+    addin_id_map = parse_addin_ids(all_addin_files) if all_addin_files else {}
+    dll_to_addin = parse_addin_assemblies(all_addin_files) if all_addin_files else {}
 
     # Index loaded_addins by name
     loaded_by_name = {}
@@ -484,14 +487,13 @@ def append_new_addins(config, loaded_addins, all_tabs, addin_lookup, addin_panel
         display_name = lookup_entry.get('displayName', panel_name)
         url = lookup_entry.get('url', '')
         expected_file = lookup_entry.get('file')
+        assembly_path = panel_info.get('assembly')
 
+        # Primary: resolve via assembly DLL path from LoadedApplications
         addin_file = expected_file
-        if not addin_file:
-            panel_compact = panel_name.lower().replace(' ', '')
-            for fname_lower in dir_files:
-                if panel_compact in fname_lower.replace(' ', '') and fname_lower.endswith('.addin'):
-                    addin_file = os.path.basename(dir_files[fname_lower])
-                    break
+        if not addin_file and assembly_path:
+            norm_assembly = os.path.normpath(assembly_path).lower()
+            addin_file = dll_to_addin.get(norm_assembly)
 
         # Skip panels with no resolved addin file and no lookup entry —
         # these are native Revit ribbon panels, not third-party add-ins
@@ -518,11 +520,11 @@ def append_new_addins(config, loaded_addins, all_tabs, addin_lookup, addin_panel
         existing[panel_name] = build_addin_entry(
             display_name=display_name, tab_name=panel_info.get('sourceTab'),
             addin_file=addin_file, addin_path=addin_path,
-            assembly_path=None, scope=scope, enabled=enabled,
+            assembly_path=assembly_path, scope=scope, enabled=enabled,
             is_protected=is_protected,
             origin=classify_addin_origin(
                 addin_file=addin_file, lookup_entry=lookup_entry,
-                tab_name=panel_name),
+                assembly_path=assembly_path, tab_name=panel_name),
             lookup_entry=lookup_entry,
             addin_id=addin_id_map.get(addin_file, ''))
         added.append(panel_name)

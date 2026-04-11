@@ -134,6 +134,16 @@ try:
                 addin['addinId'] = match['addinId']
             if 'assembly' in match:
                 addin['assembly'] = match['assembly']
+
+    # Merge assembly info into _addin_panels by matching panel name to LoadedApplications
+    for panel in _addin_panels:
+        key = panel.get('name', '').lower()
+        if key in _loaded_apps:
+            match = _loaded_apps[key]
+            if 'assembly' in match:
+                panel['assembly'] = match['assembly']
+            if 'addinId' in match:
+                panel['addinId'] = match['addinId']
 except Exception as e:
     log.warning('Could not scan LoadedApplications: %s', e)
 

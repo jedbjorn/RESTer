@@ -247,13 +247,21 @@ _BUILTIN_TABS = {
 
 
 _all_tabs = []
+_addin_panels = []
+
+# Panels on built-in tabs that are Revit-native (not third-party)
+_BUILTIN_PANELS = {
+    'Align', 'Macros', 'External', 'External Tools',
+    'Analysis', 'Selection', 'Visual Programming',
+}
 
 def get_loaded_addins():
     """Collect loaded add-ins by scanning non-builtin ribbon tabs.
-    Also populates _all_tabs with every visible tab name."""
-    global _all_tabs
+    Also populates _all_tabs and _addin_panels."""
+    global _all_tabs, _addin_panels
     addins = []
     _all_tabs = []
+    _addin_panels = []
     try:
         import clr
         clr.AddReference('AdWindows')
@@ -261,6 +269,7 @@ def get_loaded_addins():
         ribbon = ComponentManager.Ribbon
         if ribbon and ribbon.Tabs:
             seen = set()
+            seen_panels = set()
             for tab in ribbon.Tabs:
                 try:
                     title = str(tab.Title) if tab.Title else ''
@@ -277,11 +286,28 @@ def get_loaded_addins():
                     _all_tabs.append(title)
                     if title not in _BUILTIN_TABS:
                         addins.append({'name': title})
+                    else:
+                        # Scan panels on built-in tabs for third-party add-ins
+                        try:
+                            if tab.Panels:
+                                for panel in tab.Panels:
+                                    try:
+                                        psrc = panel.Source
+                                        if psrc is None:
+                                            continue
+                                        ptitle = str(psrc.Title) if psrc.Title else ''
+                                        if ptitle and ptitle not in _BUILTIN_PANELS and ptitle not in _BUILTIN_TABS and ptitle not in seen_panels:
+                                            seen_panels.add(ptitle)
+                                            _addin_panels.append({'name': ptitle, 'sourceTab': title})
+                                    except Exception:
+                                        continue
+                        except Exception:
+                            pass
                 except Exception:
                     continue
     except Exception as e:
         log.warning('Could not scan ribbon for add-ins: %s', e)
-    log.info('Found %d loaded add-ins', len(addins))
+    log.info('Found %d loaded add-ins, %d addin panels', len(addins), len(_addin_panels))
     return addins
 
 
@@ -322,6 +348,16 @@ try:
                 addin['addinId'] = match['addinId']
             if 'assembly' in match:
                 addin['assembly'] = match['assembly']
+
+    # Merge assembly info into _addin_panels
+    for panel in _addin_panels:
+        key = panel.get('name', '').lower()
+        if key in _loaded_apps:
+            match = _loaded_apps[key]
+            if 'assembly' in match:
+                panel['assembly'] = match['assembly']
+            if 'addinId' in match:
+                panel['addinId'] = match['addinId']
 except Exception as e:
     log.warning('Could not scan LoadedApplications: %s', e)
 
@@ -342,6 +378,7 @@ revit_data = {
     'commands': commands,
     'loaded_addins': loaded_addins,
     'all_tabs': _all_tabs,
+    'addin_panels': _addin_panels,
 }
 data_path = os.path.join(_root, 'app', '_revit_data.json')
 with io.open(data_path, 'w', encoding='utf-8') as f:
