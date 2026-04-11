@@ -119,6 +119,8 @@ def save_addin_defaults(config):
             'locked':      info.get('locked', False),
             'protected':   info.get('protected', False),
             'addinFile':   info.get('addinFile'),
+            'addinId':     info.get('addinId'),
+            'assemblyPath': info.get('assemblyPath'),
             'publisher':   info.get('publisher'),
             'version':     info.get('version'),
         }
@@ -185,12 +187,16 @@ def build_user_config(username, version, loaded_addins, all_tabs, addin_lookup,
     No recursive scan. No XML parsing.
     addin_lookup provides display names and URLs as fallback metadata.
     """
-    from addin_scanner import BUILTIN_TABS, classify_addin_origin
+    from addin_scanner import BUILTIN_TABS, classify_addin_origin, parse_addin_ids, get_addins_dirs, _find_all_addin_files
 
     log.info('Building user config for %s / Revit %s', username, version)
 
     # Step 1: list user + machine addins directories
     dir_files, user_addins_dir = _list_addins_dirs(version)
+
+    # Parse AddInIds from .addin XML files
+    search_dirs = get_addins_dirs(version)
+    addin_id_map = parse_addin_ids(_find_all_addin_files(search_dirs)) if search_dirs else {}
 
     # Determine scope helper: is this path in user AppData?
     appdata_lower = (os.environ.get('APPDATA', '') or '').lower()
@@ -252,6 +258,7 @@ def build_user_config(username, version, loaded_addins, all_tabs, addin_lookup,
         if addin_path and appdata_lower and not addin_path.lower().startswith(appdata_lower):
             scope = 'machine'
 
+        addin_id = loaded_entry.get('addinId') or addin_id_map.get(addin_file, '')
         addins[tab_name] = build_addin_entry(
             display_name=display_name, tab_name=tab_name,
             addin_file=addin_file, addin_path=addin_path,
@@ -260,7 +267,8 @@ def build_user_config(username, version, loaded_addins, all_tabs, addin_lookup,
             origin=classify_addin_origin(
                 addin_file=addin_file, lookup_entry=lookup_entry,
                 assembly_path=assembly_path, tab_name=tab_name),
-            lookup_entry=lookup_entry)
+            lookup_entry=lookup_entry,
+            addin_id=addin_id)
 
     # Step 5: process third-party panels on built-in tabs (e.g. Kinship on Add-Ins)
     for panel_info in (addin_panels or []):
@@ -311,7 +319,8 @@ def build_user_config(username, version, loaded_addins, all_tabs, addin_lookup,
             origin=classify_addin_origin(
                 addin_file=addin_file, lookup_entry=lookup_entry,
                 tab_name=panel_info.get('sourceTab')),
-            lookup_entry=lookup_entry)
+            lookup_entry=lookup_entry,
+            addin_id=addin_id_map.get(addin_file, ''))
 
     # Step 6: catch any .addin files in the directory not matched to a loaded tab
     matched_files = set()
@@ -345,7 +354,8 @@ def build_user_config(username, version, loaded_addins, all_tabs, addin_lookup,
             enabled=not fname.endswith('.RSTdisabled'),
             is_protected=False,  # protection applied by profile, not at scan time
             origin=classify_addin_origin(addin_file=canonical, lookup_entry=lookup_entry),
-            lookup_entry=lookup_entry)
+            lookup_entry=lookup_entry,
+            addin_id=addin_id_map.get(canonical, ''))
 
     config = {
         'username': username,
@@ -361,7 +371,7 @@ def build_user_config(username, version, loaded_addins, all_tabs, addin_lookup,
 def append_new_addins(config, loaded_addins, all_tabs, addin_lookup, addin_panels=None):
     """Check current Revit session against config and append any new add-ins.
     Never removes or rebuilds — only adds. Preserves enabled/disabled state."""
-    from addin_scanner import BUILTIN_TABS, classify_addin_origin
+    from addin_scanner import BUILTIN_TABS, classify_addin_origin, parse_addin_ids, get_addins_dirs, _find_all_addin_files
 
     existing = config.get('addins', {})
     version = config.get('revitVersion', '')
@@ -370,6 +380,10 @@ def append_new_addins(config, loaded_addins, all_tabs, addin_lookup, addin_panel
 
     # Get current directory listing
     dir_files, _ = _list_addins_dirs(version)
+
+    # Parse AddInIds from .addin XML files
+    search_dirs = get_addins_dirs(version)
+    addin_id_map = parse_addin_ids(_find_all_addin_files(search_dirs)) if search_dirs else {}
 
     # Index loaded_addins by name
     loaded_by_name = {}
@@ -428,7 +442,8 @@ def append_new_addins(config, loaded_addins, all_tabs, addin_lookup, addin_panel
             origin=classify_addin_origin(
                 addin_file=addin_file, lookup_entry=lookup_entry,
                 assembly_path=assembly_path, tab_name=tab_name),
-            lookup_entry=lookup_entry)
+            lookup_entry=lookup_entry,
+            addin_id=loaded_entry.get('addinId') or addin_id_map.get(addin_file, ''))
         added.append(tab_name)
 
     # Step 2: check third-party panels on built-in tabs
@@ -480,7 +495,8 @@ def append_new_addins(config, loaded_addins, all_tabs, addin_lookup, addin_panel
             origin=classify_addin_origin(
                 addin_file=addin_file, lookup_entry=lookup_entry,
                 tab_name=panel_info.get('sourceTab')),
-            lookup_entry=lookup_entry)
+            lookup_entry=lookup_entry,
+            addin_id=addin_id_map.get(addin_file, ''))
         added.append(panel_name)
 
     # Step 3: check directory for new .addin files not matched to any tab
@@ -519,7 +535,8 @@ def append_new_addins(config, loaded_addins, all_tabs, addin_lookup, addin_panel
             enabled=not fname.endswith('.RSTdisabled'),
             is_protected=False,  # protection applied by profile, not at scan time
             origin=classify_addin_origin(addin_file=canonical, lookup_entry=lookup_entry),
-            lookup_entry=lookup_entry)
+            lookup_entry=lookup_entry,
+            addin_id=addin_id_map.get(canonical, ''))
         added.append(base)
 
     if added:

@@ -301,6 +301,32 @@ def parse_addin_assemblies(addin_files):
     return dll_to_addin
 
 
+def parse_addin_ids(addin_files):
+    """Parse .addin XML files and extract AddInId GUIDs.
+
+    Returns dict: {addin_filename: addinId_string}
+    Uses the first AddInId found per file.
+    """
+    file_to_id = {}
+    for fname, paths in addin_files.items():
+        if not (fname.endswith('.addin') or fname.endswith('.addin.RSTdisabled')):
+            continue
+        fpath = paths[0]
+        try:
+            tree = ET.parse(fpath)
+            root = tree.getroot()
+            for addin_elem in root.iter('AddIn'):
+                aid = addin_elem.findtext('AddInId')
+                if aid:
+                    canonical = fname.replace('.addin.RSTdisabled', '.addin')
+                    file_to_id[canonical] = aid.strip()
+                    break
+        except (ET.ParseError, IOError, OSError):
+            continue
+    log.debug('Parsed AddInIds from %d .addin files', len(file_to_id))
+    return file_to_id
+
+
 def resolve_tab_to_addin(loaded_addins, addin_files, addin_lookup=None):
     """Cross-reference LoadedApplications assembly paths against .addin XML
     to build a definitive tab-name → .addin-filename mapping.

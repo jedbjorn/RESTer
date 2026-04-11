@@ -76,7 +76,7 @@ def build_identity(revit_username=None):
 
 def build_addin_entry(display_name, tab_name, addin_file, addin_path,
                       assembly_path, scope, enabled, is_protected,
-                      origin, lookup_entry=None):
+                      origin, lookup_entry=None, addin_id=None):
     """Build a standardized add-in entry dict.
 
     Single source of truth for the addin object shape used in user configs,
@@ -89,6 +89,7 @@ def build_addin_entry(display_name, tab_name, addin_file, addin_path,
         'addinFile':    addin_file,
         'addinPath':    addin_path,
         'assemblyPath': assembly_path,
+        'addinId':      addin_id,
         'scope':        scope,
         'elevated':     scope == 'machine',
         'enabled':      enabled,
@@ -101,6 +102,124 @@ def build_addin_entry(display_name, tab_name, addin_file, addin_path,
         'installDate':  le.get('installDate'),
         'sizeKB':       le.get('sizeKB'),
     }
+
+
+# ── Add-in Name Normalization & Matching ─────────────────────────────────────
+
+# Tokens stripped during normalization (version noise, common suffixes)
+_STRIP_TOKENS = {'version', 'beta', 'alpha', 'rc', 'release', 'trial',
+                 'for', 'revit', 'suite'}
+
+
+def normalize_addin_name(name):
+    """Normalize an add-in name for fuzzy matching.
+
+    Lowercases, strips numbers, dots, 'v', 'version', 'beta', etc.
+    Returns a clean string for comparison.
+      'DiRoots Suite v4.2.1' → 'diroots suite'
+      'Enscape 3.5.6+45678'  → 'enscape'
+    """
+    if not name:
+        return ''
+    s = name.lower()
+    # Remove version-like patterns: v1.2.3, 2024, etc.
+    s = re.sub(r'v?\d[\d.]*', '', s)
+    # Remove special chars
+    s = re.sub(r'[.\-_+()\\/:*?"<>|]', ' ', s)
+    # Remove noise tokens
+    words = [w for w in s.split() if w not in _STRIP_TOKENS]
+    return ' '.join(words).strip()
+
+
+def match_addins(profile_addins, local_addins):
+    """Match add-ins from a profile against add-ins on the local machine.
+
+    profile_addins: list of dicts from the profile JSON, each with:
+        {tabName, addinId?, addinFile?, displayName?}
+    local_addins: dict from user config's 'addins', keyed by name, each with:
+        {tabName, addinId?, addinFile?, assemblyPath?, displayName?}
+
+    Returns dict: {profile_tab_name: {match, local_name, method}}
+      match:      'found' | 'not_found'
+      local_name: key in local_addins that matched, or None
+      method:     'name' | 'addinId' | 'dll' | None
+    """
+    results = {}
+
+    # Build local indexes for fast lookup
+    local_by_norm_name = {}   # normalized displayName → local key
+    local_by_id = {}          # addinId (GUID) → local key
+    local_by_dll = {}         # dll basename → local key
+
+    for local_key, info in local_addins.items():
+        # Normalized name index (use displayName, fall back to key)
+        norm = normalize_addin_name(info.get('displayName', local_key))
+        if norm:
+            local_by_norm_name[norm] = local_key
+
+        # Also index by the key itself normalized
+        norm_key = normalize_addin_name(local_key)
+        if norm_key and norm_key not in local_by_norm_name:
+            local_by_norm_name[norm_key] = local_key
+
+        # AddInId index
+        aid = info.get('addinId', '')
+        if aid:
+            local_by_id[aid.lower()] = local_key
+
+        # DLL basename index
+        asm = info.get('assemblyPath', '')
+        if asm:
+            dll_name = os.path.basename(asm).lower()
+            if dll_name:
+                local_by_dll[dll_name] = local_key
+
+    for paddin in profile_addins:
+        p_tab = paddin if isinstance(paddin, str) else paddin.get('tabName', '')
+        if not p_tab:
+            continue
+
+        p_display = paddin.get('displayName', p_tab) if isinstance(paddin, dict) else p_tab
+        p_id = paddin.get('addinId', '') if isinstance(paddin, dict) else ''
+        p_file = paddin.get('addinFile', '') if isinstance(paddin, dict) else ''
+
+        matched_key = None
+        method = None
+
+        # Tier 1: Normalized name match
+        p_norm = normalize_addin_name(p_display)
+        if p_norm and p_norm in local_by_norm_name:
+            matched_key = local_by_norm_name[p_norm]
+            method = 'name'
+
+        # Also try normalizing the tab name itself
+        if not matched_key:
+            p_norm_tab = normalize_addin_name(p_tab)
+            if p_norm_tab and p_norm_tab in local_by_norm_name:
+                matched_key = local_by_norm_name[p_norm_tab]
+                method = 'name'
+
+        # Tier 2: AddInId (GUID) match
+        if not matched_key and p_id:
+            if p_id.lower() in local_by_id:
+                matched_key = local_by_id[p_id.lower()]
+                method = 'addinId'
+
+        # Tier 3: DLL filename match
+        if not matched_key and p_file:
+            # Try using addinFile as a proxy for DLL name
+            dll_guess = p_file.lower().replace('.addin', '.dll')
+            if dll_guess in local_by_dll:
+                matched_key = local_by_dll[dll_guess]
+                method = 'dll'
+
+        results[p_tab] = {
+            'match': 'found' if matched_key else 'not_found',
+            'local_name': matched_key,
+            'method': method,
+        }
+
+    return results
 
 
 # ── Utility Functions ─────────────────────────────────────────────────────────
