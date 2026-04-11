@@ -473,6 +473,10 @@
     background: rgba(16,185,129,0.08);
     color: var(--accent3);
   }
+  .origin-autodesk {
+    background: rgba(16,185,129,0.08);
+    color: var(--accent3);
+  }
   .origin-thirdparty {
     background: rgba(79,142,247,0.08);
     color: var(--accent);
@@ -1130,6 +1134,7 @@
 
           var originVal = configEntry ? (configEntry.origin || '') : (native ? 'native' : '');
           var originCls = originVal === 'native' ? 'origin-native'
+            : originVal === 'autodesk' ? 'origin-autodesk'
             : originVal === 'third-party' ? 'origin-thirdparty'
             : originVal === 'custom' ? 'origin-custom' : '';
 

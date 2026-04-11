@@ -1277,6 +1277,10 @@
     background: rgba(16,185,129,0.08);
     color: var(--accent3);
   }
+  .origin-autodesk {
+    background: rgba(16,185,129,0.08);
+    color: var(--accent3);
+  }
   .origin-thirdparty {
     background: rgba(79,142,247,0.08);
     color: var(--accent);
@@ -1842,7 +1846,7 @@
       if (hasRegistryData && publisher && publisher.toLowerCase().indexOf('autodesk') === -1) {
         origin = 'third-party';
       } else if (hasRegistryData && publisher && publisher.toLowerCase().indexOf('autodesk') >= 0) {
-        origin = 'native';
+        origin = 'autodesk';
       } else if (hasRegistryData && !publisher) {
         origin = 'custom';
       } else if (!hasRegistryData) {
@@ -1920,7 +1924,8 @@
         }
         const badge = native ? ' Native' : (resolved || loaded ? ' \u2713' : (isUnknown ? ' ?' : ''));
         var originVal = addin.origin || (native ? 'native' : '');
-        var originBadge = originVal && !native ? ` <span class="addin-origin origin-${originVal === 'third-party' ? 'thirdparty' : originVal}">${originVal}</span>` : '';
+        var originCls = originVal === 'third-party' ? 'thirdparty' : originVal;
+        var originBadge = originVal && !native ? ` <span class="addin-origin origin-${originCls}">${originVal}</span>` : '';
         return `<span class="addin-chip${cls}" title="${title}">${name}${badge}${originBadge}</span>`;
       }).join('');
     }
