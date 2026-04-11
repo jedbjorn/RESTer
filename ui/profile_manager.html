@@ -3472,9 +3472,7 @@
     if (window.pywebview && window.pywebview.api && window.pywebview.api.load_profile_into_editor) {
       window.pywebview.api.load_profile_into_editor(name, id).then(profile => {
         if (!profile) return;
-        if (profile._unloaded) {
-          showToast('Profile Unloaded', profile._message || 'Profile was unloaded for editing. Reload after saving.', 5000);
-        }
+        // Profile loads directly for editing — no copy, no unload needed
         applyProfileToEditor(profile);
       }).catch(err => {
         showToast('Load failed', String(err));
