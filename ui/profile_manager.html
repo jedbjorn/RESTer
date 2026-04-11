@@ -3604,7 +3604,13 @@
         }
       }
 
-      // Fetch addin defaults (locked/protected from scan)
+      // Build user config first — triggers system scan + addin_defaults write
+      // so that addin_defaults.json is enriched with registry data before we read it
+      if (window.pywebview && window.pywebview.api && window.pywebview.api.get_user_config) {
+        await window.pywebview.api.get_user_config();
+      }
+
+      // Fetch addin defaults (locked/protected from scan — now enriched)
       if (window.pywebview && window.pywebview.api && window.pywebview.api.get_addin_defaults) {
         const defaults = await window.pywebview.api.get_addin_defaults();
         if (defaults && typeof defaults === 'object') {
