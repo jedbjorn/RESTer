@@ -36,7 +36,7 @@ UI_DIR              = os.path.join(EXT_ROOT, 'ui')
 def _load_locked_addins():
     """Load locked_addins list from config.json. These are always locked regardless of origin."""
     try:
-        with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+        with open(CONFIG_PATH, 'r') as f:
             cfg = json.load(f)
         return {a.lower() for a in cfg.get('locked_addins', [])}
     except (IOError, ValueError):
