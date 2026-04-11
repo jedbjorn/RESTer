@@ -2330,7 +2330,7 @@
       '<div style="margin-bottom:12px"><label style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:4px">Name</label>' +
       '<input id="urlToolName" type="text" placeholder="e.g. Company Wiki" style="width:100%;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:\'DM Sans\',sans-serif;font-size:13px;outline:none"></div>' +
       '<div style="margin-bottom:18px"><label style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:4px">URL</label>' +
-      '<input id="urlToolUrl" type="text" placeholder="https://..." style="width:100%;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:\'DM Sans\',sans-serif;font-size:13px;outline:none"></div>' +
+      '<input id="urlToolUrl" type="text" placeholder="https://... or email@example.com" style="width:100%;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:\'DM Sans\',sans-serif;font-size:13px;outline:none"></div>' +
       '<div style="display:flex;gap:8px;justify-content:flex-end">' +
       '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="padding:6px 14px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--text3);cursor:pointer;font-family:\'DM Mono\',monospace;font-size:10px">Cancel</button>' +
       '<button onclick="confirmAddUrl()" style="padding:6px 14px;border-radius:4px;border:1px solid rgba(16,185,129,0.4);background:rgba(16,185,129,0.1);color:var(--accent3);cursor:pointer;font-family:\'DM Mono\',monospace;font-size:10px">Add Tool</button>' +
@@ -2339,9 +2339,17 @@
     document.getElementById('urlToolName').focus();
   }
 
+  function normalizeUrl(val) {
+    // Auto-detect email addresses and prepend mailto:
+    if (val.indexOf('@') !== -1 && val.indexOf(':') === -1 && val.indexOf('/') === -1) {
+      return 'mailto:' + val;
+    }
+    return val;
+  }
+
   function confirmAddUrl() {
     var name = document.getElementById('urlToolName').value.trim();
-    var url = document.getElementById('urlToolUrl').value.trim();
+    var url = normalizeUrl(document.getElementById('urlToolUrl').value.trim());
     if (!name || !url) return;
     var overlay = document.querySelector('.url-tool-overlay');
     if (overlay) overlay.remove();
@@ -2388,7 +2396,7 @@
 
   function confirmEditUrl(toolIdx) {
     var name = document.getElementById('urlToolName').value.trim();
-    var url = document.getElementById('urlToolUrl').value.trim();
+    var url = normalizeUrl(document.getElementById('urlToolUrl').value.trim());
     if (!name || !url) return;
     var overlay = document.querySelector('.url-tool-overlay');
     if (overlay) overlay.remove();
