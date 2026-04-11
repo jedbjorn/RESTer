@@ -254,7 +254,19 @@ def get_addins_dirs(revit_version):
     if os.path.isdir(machine_dir):
         dirs.append(machine_dir)
 
-    # 3. Revit install folder (read-only scanning, never modify)
+    # 3. App Store bundles: %APPDATA%\Autodesk\ApplicationPlugins\
+    appdata = _get_appdata()
+    if appdata:
+        user_plugins = os.path.join(appdata, 'Autodesk', 'ApplicationPlugins')
+        if os.path.isdir(user_plugins):
+            dirs.append(user_plugins)
+
+    # 4. App Store bundles: %PROGRAMDATA%\Autodesk\ApplicationPlugins\
+    machine_plugins = os.path.join(programdata, 'Autodesk', 'ApplicationPlugins')
+    if os.path.isdir(machine_plugins):
+        dirs.append(machine_plugins)
+
+    # 5. Revit install folder (read-only scanning, never modify)
     program_files = os.environ.get('PROGRAMFILES', r'C:\Program Files')
     revit_dir = os.path.join(program_files, 'Autodesk', 'Revit ' + ver)
     if os.path.isdir(revit_dir):

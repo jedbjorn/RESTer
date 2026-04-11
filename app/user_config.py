@@ -190,6 +190,15 @@ def _list_addins_dirs(version):
         user_count = _walk_dir(user_dir)
         log.debug('User addins dir: %s (%d files)', user_dir, user_count)
 
+    # App Store bundles (ApplicationPlugins) — user and machine scope
+    if appdata:
+        user_plugins = os.path.join(appdata, 'Autodesk', 'ApplicationPlugins')
+        plugins_count = _walk_dir(user_plugins)
+        log.debug('User ApplicationPlugins: %s (%d files)', user_plugins, plugins_count)
+    machine_plugins = os.path.join(programdata, 'Autodesk', 'ApplicationPlugins')
+    plugins_count = _walk_dir(machine_plugins)
+    log.debug('Machine ApplicationPlugins: %s (%d files)', machine_plugins, plugins_count)
+
     log.debug('Total addins found: %d', len(result))
     return result, user_dir
 
