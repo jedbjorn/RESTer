@@ -2320,7 +2320,10 @@
   }
 
   function promptAddUrl() {
+    // Prevent opening a second dialog
+    if (document.querySelector('.url-tool-overlay')) return;
     var overlay = document.createElement('div');
+    overlay.className = 'url-tool-overlay';
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,17,23,0.85);display:flex;align-items:center;justify-content:center;z-index:1000';
     overlay.innerHTML = '<div style="background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:24px;width:340px">' +
       '<div style="font-family:Syne,sans-serif;font-weight:700;font-size:14px;color:var(--heading);margin-bottom:16px">Add URL Tool</div>' +
@@ -2340,15 +2343,21 @@
     var name = document.getElementById('urlToolName').value.trim();
     var url = document.getElementById('urlToolUrl').value.trim();
     if (!name || !url) return;
-    var overlay = document.querySelector('div[style*="fixed"][style*="inset"]');
+    var overlay = document.querySelector('.url-tool-overlay');
     if (overlay) overlay.remove();
+    var cmdId = 'URL:' + url;
+    // Prevent duplicate — check if this commandId already exists
+    if (state.allTools.some(function(t) { return t.commandId === cmdId; })) {
+      showToast('Duplicate', 'A tool with this URL already exists.');
+      return;
+    }
     state.allTools.push({
       name: name,
       baseName: name,
       icon: '\u{1F517}',
       sourceTab: 'Custom',
       sourcePanel: null,
-      commandId: 'URL:' + url,
+      commandId: cmdId,
     });
     persistCustomTools();
     renderToolList();
@@ -2357,9 +2366,11 @@
   function editCustomTool(toolIdx) {
     var tool = state.allTools[toolIdx];
     if (!tool || tool.sourceTab !== 'Custom') return;
+    if (document.querySelector('.url-tool-overlay')) return;
     var currentUrl = (tool.commandId || '').replace(/^URL:/, '');
 
     var overlay = document.createElement('div');
+    overlay.className = 'url-tool-overlay';
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,17,23,0.85);display:flex;align-items:center;justify-content:center;z-index:1000';
     overlay.innerHTML = '<div style="background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:24px;width:340px">' +
       '<div style="font-family:Syne,sans-serif;font-weight:700;font-size:14px;color:var(--heading);margin-bottom:16px">Edit URL Tool</div>' +
@@ -2379,7 +2390,7 @@
     var name = document.getElementById('urlToolName').value.trim();
     var url = document.getElementById('urlToolUrl').value.trim();
     if (!name || !url) return;
-    var overlay = document.querySelector('div[style*="fixed"][style*="inset"]');
+    var overlay = document.querySelector('.url-tool-overlay');
     if (overlay) overlay.remove();
 
     var oldName = state.allTools[toolIdx].name;
