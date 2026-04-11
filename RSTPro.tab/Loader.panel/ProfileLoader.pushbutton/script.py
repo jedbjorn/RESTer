@@ -154,6 +154,17 @@ try:
 except Exception:
     pass
 
+# Get active model info
+_model_name = ''
+_model_path = ''
+try:
+    doc = __revit__.ActiveUIDocument.Document
+    if doc:
+        _model_name = str(doc.Title) if doc.Title else ''
+        _model_path = str(doc.PathName) if doc.PathName else ''
+except Exception:
+    pass
+
 log.info('Revit %s, %d tabs, %d loaded add-ins, %d addin panels, username=%s',
          _revit_version, len(_all_tabs), len(_loaded_addins), len(_addin_panels), _revit_username)
 
@@ -164,6 +175,8 @@ with io.open(_loader_data_path, 'w', encoding='utf-8') as f:
         'revit_version': _revit_version,
         'revit_build': _revit_build,
         'revit_username': _revit_username,
+        'model_name': _model_name,
+        'model_path': _model_path,
         'loaded_addins': _loaded_addins,
         'all_tabs': _all_tabs,
         'addin_panels': _addin_panels,
