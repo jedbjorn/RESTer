@@ -80,13 +80,13 @@ def classify_addin_origin(addin_file=None, lookup_entry=None, assembly_path=None
                           tab_name=None):
     """Classify an add-in's origin: 'third-party', 'custom', 'autodesk', or 'native'.
 
-    Rules applied in order:
+    Rules applied in order (first match wins):
       1. In registry + Publisher is not Autodesk → 'third-party'
       2. In registry + no Publisher → 'custom' (user/firm-built, subject to disable)
-      3. Not in registry at all → 'custom' (unless static fallback or Autodesk DLL)
-      4. In registry + Publisher contains 'Autodesk' → 'autodesk'
-      5. DLL path inside Autodesk install folder → 'autodesk'
-      6. On a built-in tab (BUILTIN_TABS) → 'native'
+      3. On a built-in tab (BUILTIN_TABS) → 'native'
+      4. Not in registry at all → 'custom' (unless static fallback or Autodesk DLL)
+      5. In registry + Publisher contains 'Autodesk' → 'autodesk'
+      6. DLL path inside Autodesk install folder → 'autodesk'
 
     Values:
       'native'      — built-in Revit tool (on a native tab, no add-in)
@@ -114,7 +114,11 @@ def classify_addin_origin(addin_file=None, lookup_entry=None, assembly_path=None
     if has_registry_data and not publisher:
         return 'custom'
 
-    # Rule 3: Not in registry at all — check static fallback before calling custom
+    # Rule 3: On a built-in tab (BUILTIN_TABS)
+    if tab_name and tab_name in BUILTIN_TABS:
+        return 'native'
+
+    # Rule 4: Not in registry at all — check static fallback before calling custom
     if not has_registry_data:
         if addin_file and addin_file.lower() in {a.lower() for a in AUTODESK_ADDINS}:
             return 'autodesk'
@@ -122,17 +126,13 @@ def classify_addin_origin(addin_file=None, lookup_entry=None, assembly_path=None
             return 'autodesk'
         return 'custom'
 
-    # Rule 4: Autodesk publisher
+    # Rule 5: Autodesk publisher
     if 'autodesk' in publisher.lower():
         return 'autodesk'
 
-    # Rule 5: DLL inside Autodesk install folder
+    # Rule 6: DLL inside Autodesk install folder
     if _is_autodesk_dll(assembly_path):
         return 'autodesk'
-
-    # Rule 6: Built-in tab
-    if tab_name and tab_name in BUILTIN_TABS:
-        return 'native'
 
     return 'custom'
 
