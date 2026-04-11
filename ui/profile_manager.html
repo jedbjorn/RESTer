@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tab Creator</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="rst_components.css">
 <style>
   :root {
     --bg: #0f1117;
@@ -1405,7 +1406,7 @@
       onmouseenter="this.style.background='var(--accent3)';this.style.color='#0f1117';this.style.borderColor='var(--accent3)'"
       onmouseleave="this.style.background='rgba(16,185,129,0.06)';this.style.color='var(--accent3)';this.style.borderColor='rgba(16,185,129,0.4)'"
       >Add Logo</button>
-    <button onclick="openProtectionPanel()" title="Set which add-ins are protected or locked"
+    <button onclick="openProtectionPanel()" title="Set which add-ins are protected"
       style="font-family:'DM Mono',monospace;font-size:10px;padding:3px 10px;border:1px solid rgba(79,142,247,0.4);background:rgba(79,142,247,0.06);color:var(--accent);border-radius:4px;cursor:pointer;white-space:nowrap;transition:all 0.15s"
       onmouseenter="this.style.background='var(--accent)';this.style.color='#0f1117';this.style.borderColor='var(--accent)'"
       onmouseleave="this.style.background='rgba(79,142,247,0.06)';this.style.color='var(--accent)';this.style.borderColor='rgba(79,142,247,0.4)'"
@@ -1425,9 +1426,9 @@
       <button onclick="closeProtectionPanel()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:0 4px">&times;</button>
     </div>
     <div style="padding:10px 18px 6px;font-family:'DM Mono',monospace;font-size:9px;color:var(--text3);line-height:1.5">
-      Locked add-ins are hidden from users. Protected add-ins are visible but cannot be disabled.
+      Protected add-ins are visible but cannot be disabled by users.
     </div>
-    <div id="protectionList" style="flex:1;overflow-y:auto;padding:8px 18px 14px"></div>
+    <div id="protectionList" class="rst-scroll" style="flex:1;overflow-y:auto;padding:8px 18px 14px"></div>
     <div style="padding:10px 18px 14px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
       <button onclick="closeProtectionPanel()" style="font-family:'DM Mono',monospace;font-size:10px;padding:5px 14px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);border-radius:4px;cursor:pointer">Cancel</button>
       <button onclick="saveProtectionSettings()" style="font-family:'DM Mono',monospace;font-size:10px;padding:5px 14px;border:1px solid rgba(16,185,129,0.4);background:rgba(16,185,129,0.1);color:var(--accent3);border-radius:4px;cursor:pointer">Save</button>
@@ -1928,8 +1929,10 @@
     var list = document.getElementById('protectionList');
     _protectionEdits = {};
 
-    // Build list from ADDIN_DEFAULTS
-    var names = Object.keys(ADDIN_DEFAULTS).sort(function(a, b) {
+    // Build list from ADDIN_DEFAULTS — hide locked add-ins (admin-only, not toggleable)
+    var names = Object.keys(ADDIN_DEFAULTS).filter(function(name) {
+      return !ADDIN_DEFAULTS[name].locked;
+    }).sort(function(a, b) {
       var oa = ADDIN_DEFAULTS[a].origin || '';
       var ob = ADDIN_DEFAULTS[b].origin || '';
       if (oa !== ob) return oa.localeCompare(ob);
@@ -1946,7 +1949,6 @@
       '<tr style="color:var(--text3);border-bottom:1px solid var(--border)">' +
       '<th style="text-align:left;padding:4px 6px;font-weight:normal">Add-in</th>' +
       '<th style="text-align:left;padding:4px 6px;font-weight:normal">Origin</th>' +
-      '<th style="text-align:center;padding:4px 6px;font-weight:normal">Locked</th>' +
       '<th style="text-align:center;padding:4px 6px;font-weight:normal">Protected</th>' +
       '</tr>' +
       names.map(function(name) {
@@ -1956,17 +1958,15 @@
           : d.origin === 'third-party' ? 'origin-thirdparty'
           : d.origin === 'custom' ? 'origin-custom'
           : d.origin === 'unknown' ? 'origin-unknown' : '';
-        var isNative = d.origin === 'native';
         return '<tr style="border-bottom:1px solid rgba(255,255,255,0.04)">' +
           '<td style="padding:5px 6px;color:var(--text1)">' + name + '</td>' +
           '<td style="padding:5px 6px"><span class="addin-origin ' + originCls + '">' + (d.origin || '') + '</span></td>' +
-          '<td style="text-align:center;padding:5px 6px"><input type="checkbox" ' +
-            (d.locked ? 'checked ' : '') +
-            (isNative ? 'disabled title="Native tools are always locked" ' : '') +
-            'data-name="' + name + '" data-field="locked" onchange="protectionChanged(this)"></td>' +
-          '<td style="text-align:center;padding:5px 6px"><input type="checkbox" ' +
-            (d.protected ? 'checked ' : '') +
-            'data-name="' + name + '" data-field="protected" onchange="protectionChanged(this)"></td>' +
+          '<td style="text-align:center;padding:5px 6px">' +
+            '<label class="rst-toggle">' +
+            '<input type="checkbox" ' + (d.protected ? 'checked ' : '') +
+              'data-name="' + name + '" data-field="protected" onchange="protectionChanged(this)">' +
+            '<div class="rst-toggle-track"><div class="rst-toggle-thumb"></div></div>' +
+            '</label></td>' +
           '</tr>';
       }).join('') +
       '</table>';

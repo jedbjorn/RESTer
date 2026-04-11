@@ -20,24 +20,27 @@ from rst_lib import EXT_ROOT, ADDIN_LOOKUP_PATH, SYSTEM_SCAN_PATH, CONFIG_PATH
 
 
 def _load_config():
-    """Load lookup/config.json. Returns (autodesk set, exempt_paths list)."""
+    """Load lookup/config.json. Returns (autodesk set, locked set, exempt_paths list)."""
     autodesk = set()
+    locked = set()
     exempt = []
     try:
         with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
             cfg = json.load(f)
         if 'autodesk_addins' in cfg:
             autodesk = set(cfg['autodesk_addins'])
+        if 'locked_addins' in cfg:
+            locked = set(cfg['locked_addins'])
         if 'exempt_paths' in cfg:
             exempt = [os.path.normpath(os.path.expandvars(p)) for p in cfg['exempt_paths']]
-        log.debug('Config loaded: %d autodesk, %d exempt paths',
-                  len(autodesk), len(exempt))
+        log.debug('Config loaded: %d autodesk, %d locked, %d exempt paths',
+                  len(autodesk), len(locked), len(exempt))
     except (IOError, ValueError) as e:
         log.warning('Could not load config.json, using defaults: %s', e)
-    return autodesk, exempt
+    return autodesk, locked, exempt
 
 
-AUTODESK_ADDINS, EXEMPT_PATHS = _load_config()
+AUTODESK_ADDINS, LOCKED_ADDINS, EXEMPT_PATHS = _load_config()
 
 # Legacy fallback — functions that accept protected_addins param default to empty set
 PROTECTED_ADDINS = set()

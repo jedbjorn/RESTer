@@ -10,6 +10,10 @@
     "Autodesk.BatchPrint.addin",
     "Autodesk.TotalCarbonAnalysis.addin"
   ],
+  "locked_addins": [
+    "DiRoots.addin",
+    "DiRoots.One.addin"
+  ],
   "exempt_paths": [
     "%APPDATA%\\Dynamo"
   ]

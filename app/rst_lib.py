@@ -31,6 +31,26 @@ CONFIG_PATH         = os.path.join(LOOKUP_DIR, 'config.json')
 UI_DIR              = os.path.join(EXT_ROOT, 'ui')
 
 
+# ── Config-Locked Add-ins ────────────────────────────────────────────────────
+
+def _load_locked_addins():
+    """Load locked_addins list from config.json. These are always locked regardless of origin."""
+    try:
+        with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+            cfg = json.load(f)
+        return {a.lower() for a in cfg.get('locked_addins', [])}
+    except (IOError, ValueError):
+        return set()
+
+_LOCKED_ADDINS = _load_locked_addins()
+
+def _is_config_locked(addin_file):
+    """Check if an addin file is in the config locked list."""
+    if not addin_file:
+        return False
+    return addin_file.lower() in _LOCKED_ADDINS
+
+
 # ── Profile Validation ────────────────────────────────────────────────────────
 
 REQUIRED_PROFILE_FIELDS = {'profile', 'tab', 'min_version', 'exportDate',
@@ -94,7 +114,7 @@ def build_addin_entry(display_name, tab_name, addin_file, addin_path,
         'elevated':     scope == 'machine',
         'enabled':      enabled,
         'protected':    is_protected or origin == 'autodesk',
-        'locked':       origin == 'native',
+        'locked':       origin == 'native' or _is_config_locked(addin_file),
         'origin':       origin,
         'url':          le.get('url', ''),
         'version':      le.get('version'),
