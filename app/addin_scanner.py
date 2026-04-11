@@ -76,15 +76,66 @@ def load_addin_lookup():
     return _cached_lookup
 
 
-def is_autodesk_addin(addin_file, lookup_entry=None):
-    """Check if an add-in is Autodesk-native.
+def classify_addin_origin(addin_file=None, lookup_entry=None, assembly_path=None,
+                          tab_name=None):
+    """Classify an add-in's origin: 'native', 'third-party', or 'custom'.
 
-    Uses publisher from registry data if available,
-    falls back to static AUTODESK_ADDINS list from config.json.
+    Rules applied in order:
+      1. In registry + Publisher is not Autodesk → 'third-party'
+      2. In registry + no Publisher → 'custom' (user/firm-built, subject to disable)
+      3. Not in registry at all → 'custom'
+      4. In registry + Publisher contains 'Autodesk' → 'native'
+      5. DLL path inside Revit install folder → 'native'
+      6. On a built-in tab (BUILTIN_TABS) → 'native'
+
+    Fallback: static AUTODESK_ADDINS list from config.json.
     """
-    if lookup_entry and lookup_entry.get('publisher'):
-        return 'autodesk' in lookup_entry['publisher'].lower()
-    return addin_file and addin_file.lower() in {a.lower() for a in AUTODESK_ADDINS}
+    publisher = (lookup_entry or {}).get('publisher', '') or ''
+    has_registry_data = publisher or (lookup_entry or {}).get('version') is not None
+
+    # Rule 1: Known third-party publisher
+    if has_registry_data and publisher and 'autodesk' not in publisher.lower():
+        return 'third-party'
+
+    # Rule 2: In registry but no publisher
+    if has_registry_data and not publisher:
+        return 'custom'
+
+    # Rule 3: Not in registry at all — check static fallback before calling custom
+    if not has_registry_data:
+        # Check static autodesk list as fallback
+        if addin_file and addin_file.lower() in {a.lower() for a in AUTODESK_ADDINS}:
+            return 'native'
+        # Check if DLL is in Revit install folder (Rule 5 early)
+        if assembly_path:
+            program_files = os.environ.get('PROGRAMFILES', r'C:\Program Files')
+            if os.path.normpath(assembly_path).lower().startswith(
+                    os.path.normpath(os.path.join(program_files, 'Autodesk')).lower()):
+                return 'native'
+        return 'custom'
+
+    # Rule 4: Autodesk publisher
+    if 'autodesk' in publisher.lower():
+        return 'native'
+
+    # Rule 5: DLL inside Revit install folder
+    if assembly_path:
+        program_files = os.environ.get('PROGRAMFILES', r'C:\Program Files')
+        if os.path.normpath(assembly_path).lower().startswith(
+                os.path.normpath(os.path.join(program_files, 'Autodesk')).lower()):
+            return 'native'
+
+    # Rule 6: Built-in tab
+    if tab_name and tab_name in BUILTIN_TABS:
+        return 'native'
+
+    return 'custom'
+
+
+# Keep backward compat — old code may still reference this
+def is_autodesk_addin(addin_file, lookup_entry=None):
+    """Deprecated — use classify_addin_origin() instead."""
+    return classify_addin_origin(addin_file=addin_file, lookup_entry=lookup_entry) == 'native'
 
 
 def _load_overrides():

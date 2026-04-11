@@ -153,7 +153,7 @@ def build_user_config(username, version, loaded_addins, all_tabs, addin_lookup,
     No recursive scan. No XML parsing.
     addin_lookup provides display names and URLs as fallback metadata.
     """
-    from addin_scanner import BUILTIN_TABS, PROTECTED_ADDINS, is_autodesk_addin
+    from addin_scanner import BUILTIN_TABS, PROTECTED_ADDINS, classify_addin_origin
 
     log.info('Building user config for %s / Revit %s', username, version)
 
@@ -219,7 +219,9 @@ def build_user_config(username, version, loaded_addins, all_tabs, addin_lookup,
                 enabled = False
 
         is_protected = addin_file and addin_file.lower() in protected_lower
-        is_autodesk = is_autodesk_addin(addin_file, lookup_entry)
+        origin = classify_addin_origin(
+            addin_file=addin_file, lookup_entry=lookup_entry,
+            assembly_path=assembly_path, tab_name=tab_name)
         scope = 'user'
         if addin_path and appdata_lower and not addin_path.lower().startswith(appdata_lower):
             scope = 'machine'
@@ -234,7 +236,7 @@ def build_user_config(username, version, loaded_addins, all_tabs, addin_lookup,
             'elevated': scope == 'machine',
             'enabled': enabled,
             'protected': is_protected,
-            'autodesk': is_autodesk,
+            'origin': origin,
             'url': url,
             'version': lookup_entry.get('version'),
             'publisher': lookup_entry.get('publisher'),
@@ -279,7 +281,9 @@ def build_user_config(username, version, loaded_addins, all_tabs, addin_lookup,
                 enabled = False
 
         is_protected = addin_file and addin_file.lower() in protected_lower
-        is_autodesk = is_autodesk_addin(addin_file, lookup_entry)
+        origin = classify_addin_origin(
+            addin_file=addin_file, lookup_entry=lookup_entry,
+            tab_name=panel_info.get('sourceTab'))
         scope = 'user'
         if addin_path and appdata_lower and not addin_path.lower().startswith(appdata_lower):
             scope = 'machine'
@@ -294,7 +298,7 @@ def build_user_config(username, version, loaded_addins, all_tabs, addin_lookup,
             'elevated': scope == 'machine',
             'enabled': enabled,
             'protected': is_protected,
-            'autodesk': is_autodesk,
+            'origin': origin,
             'url': url,
             'version': lookup_entry.get('version'),
             'publisher': lookup_entry.get('publisher'),
@@ -337,7 +341,7 @@ def build_user_config(username, version, loaded_addins, all_tabs, addin_lookup,
             'elevated': scope == 'machine',
             'enabled': not fname.endswith('.RSTdisabled'),
             'protected': canonical.lower() in protected_lower,
-            'autodesk': is_autodesk_addin(canonical, lookup_entry),
+            'origin': classify_addin_origin(addin_file=canonical, lookup_entry=lookup_entry),
             'url': lookup_entry.get('url', ''),
             'version': lookup_entry.get('version'),
             'publisher': lookup_entry.get('publisher'),
@@ -359,7 +363,7 @@ def build_user_config(username, version, loaded_addins, all_tabs, addin_lookup,
 def append_new_addins(config, loaded_addins, all_tabs, addin_lookup, addin_panels=None):
     """Check current Revit session against config and append any new add-ins.
     Never removes or rebuilds — only adds. Preserves enabled/disabled state."""
-    from addin_scanner import BUILTIN_TABS, PROTECTED_ADDINS, is_autodesk_addin
+    from addin_scanner import BUILTIN_TABS, PROTECTED_ADDINS, classify_addin_origin
 
     existing = config.get('addins', {})
     version = config.get('revitVersion', '')
@@ -415,7 +419,9 @@ def append_new_addins(config, loaded_addins, all_tabs, addin_lookup, addin_panel
                 enabled = False
 
         is_protected = addin_file and addin_file.lower() in protected_lower
-        is_autodesk = is_autodesk_addin(addin_file, lookup_entry)
+        origin = classify_addin_origin(
+            addin_file=addin_file, lookup_entry=lookup_entry,
+            assembly_path=assembly_path, tab_name=tab_name)
         scope = 'user'
         if addin_path and appdata_lower and not addin_path.lower().startswith(appdata_lower):
             scope = 'machine'
@@ -430,7 +436,7 @@ def append_new_addins(config, loaded_addins, all_tabs, addin_lookup, addin_panel
             'elevated': scope == 'machine',
             'enabled': enabled,
             'protected': is_protected,
-            'autodesk': is_autodesk,
+            'origin': origin,
             'url': url,
             'version': lookup_entry.get('version'),
             'publisher': lookup_entry.get('publisher'),
@@ -476,7 +482,9 @@ def append_new_addins(config, loaded_addins, all_tabs, addin_lookup, addin_panel
                 enabled = False
 
         is_protected = addin_file and addin_file.lower() in protected_lower
-        is_autodesk = is_autodesk_addin(addin_file, lookup_entry)
+        origin = classify_addin_origin(
+            addin_file=addin_file, lookup_entry=lookup_entry,
+            tab_name=panel_info.get('sourceTab'))
         scope = 'user'
         if addin_path and appdata_lower and not addin_path.lower().startswith(appdata_lower):
             scope = 'machine'
@@ -491,7 +499,7 @@ def append_new_addins(config, loaded_addins, all_tabs, addin_lookup, addin_panel
             'elevated': scope == 'machine',
             'enabled': enabled,
             'protected': is_protected,
-            'autodesk': is_autodesk,
+            'origin': origin,
             'url': url,
             'version': lookup_entry.get('version'),
             'publisher': lookup_entry.get('publisher'),
@@ -539,7 +547,7 @@ def append_new_addins(config, loaded_addins, all_tabs, addin_lookup, addin_panel
             'elevated': scope == 'machine',
             'enabled': not fname.endswith('.RSTdisabled'),
             'protected': canonical.lower() in protected_lower,
-            'autodesk': is_autodesk_addin(canonical, lookup_entry),
+            'origin': classify_addin_origin(addin_file=canonical, lookup_entry=lookup_entry),
             'url': lookup_entry.get('url', ''),
             'version': lookup_entry.get('version'),
             'publisher': lookup_entry.get('publisher'),

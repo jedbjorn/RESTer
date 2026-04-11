@@ -459,6 +459,29 @@
     color: var(--warn);
   }
 
+  /* ── ORIGIN BADGES ── */
+  .addin-origin {
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .origin-native {
+    background: rgba(16,185,129,0.08);
+    color: var(--accent3);
+  }
+  .origin-thirdparty {
+    background: rgba(79,142,247,0.08);
+    color: var(--accent);
+  }
+  .origin-custom {
+    background: rgba(245,158,11,0.08);
+    color: var(--warn);
+  }
+
   /* ── FOOTER TOGGLES ── */
   .footer-toggles {
     display: flex;
@@ -1105,8 +1128,14 @@
             statusTitle = url ? 'Not found \u2014 download: ' + url : 'Not found on this machine';
           }
 
+          var originVal = configEntry ? (configEntry.origin || '') : (native ? 'native' : '');
+          var originCls = originVal === 'native' ? 'origin-native'
+            : originVal === 'third-party' ? 'origin-thirdparty'
+            : originVal === 'custom' ? 'origin-custom' : '';
+
           return `<div class="addin-row">
             <span class="addin-row-name">${escHtml(tabName)}</span>
+            ${originVal ? `<span class="addin-origin ${originCls}">${originVal}</span>` : ''}
             <span class="addin-file">${fileCol}</span>
             <span class="addin-status ${statusCls}" title="${statusTitle}">${statusLabel}</span>
           </div>`;
@@ -1242,17 +1271,24 @@
     var skippedList = document.getElementById('confirmSkipped');
     var skippedWrap = document.getElementById('confirmSkippedWrap');
 
+    function confirmOriginBadge(info) {
+      var o = info.origin || '';
+      if (!o) return '';
+      var cls = o === 'native' ? 'origin-native' : o === 'third-party' ? 'origin-thirdparty' : 'origin-custom';
+      return ' <span class="addin-origin ' + cls + '">' + o + '</span>';
+    }
+
     stayingList.innerHTML = staying.map(function(info) {
-      return '<div class="confirm-list-item">' + escHtml(info.displayName || info.tabName || 'Unknown') + '</div>';
+      return '<div class="confirm-list-item">' + escHtml(info.displayName || info.tabName || 'Unknown') + confirmOriginBadge(info) + '</div>';
     }).join('') || '<div class="confirm-list-item" style="color:var(--text3)">None</div>';
 
     disablingList.innerHTML = disabling.map(function(info) {
-      return '<div class="confirm-list-item">' + escHtml(info.displayName || info.tabName || 'Unknown') + '</div>';
+      return '<div class="confirm-list-item">' + escHtml(info.displayName || info.tabName || 'Unknown') + confirmOriginBadge(info) + '</div>';
     }).join('') || '<div class="confirm-list-item" style="color:var(--text3)">None</div>';
 
     if (skipped && skipped.length > 0) {
       skippedList.innerHTML = skipped.map(function(info) {
-        return '<div class="confirm-list-item">' + escHtml(info.displayName || info.tabName || 'Unknown') + '</div>';
+        return '<div class="confirm-list-item">' + escHtml(info.displayName || info.tabName || 'Unknown') + confirmOriginBadge(info) + '</div>';
       }).join('');
       skippedWrap.style.display = '';
     } else {

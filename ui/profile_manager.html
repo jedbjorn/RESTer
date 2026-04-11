@@ -1263,6 +1263,29 @@
     color: var(--warn);
   }
 
+  /* ── ORIGIN BADGES ── */
+  .addin-origin {
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .origin-native {
+    background: rgba(16,185,129,0.08);
+    color: var(--accent3);
+  }
+  .origin-thirdparty {
+    background: rgba(79,142,247,0.08);
+    color: var(--accent);
+  }
+  .origin-custom {
+    background: rgba(245,158,11,0.08);
+    color: var(--warn);
+  }
+
   /* ── DISABLED ADD-INS BANNER ── */
   .disabled-banner {
     display: none;
@@ -1812,10 +1835,24 @@
     const addinEntries = [...tabs].map(tabName => {
       const resolved = RESOLVED_ADDINS[tabName] || {};
       const lookup = ADDIN_LOOKUP[tabName] || {};
+      // Derive origin from lookup publisher
+      var publisher = lookup.publisher || '';
+      var hasRegistryData = publisher || lookup.version != null;
+      var origin = '';
+      if (hasRegistryData && publisher && publisher.toLowerCase().indexOf('autodesk') === -1) {
+        origin = 'third-party';
+      } else if (hasRegistryData && publisher && publisher.toLowerCase().indexOf('autodesk') >= 0) {
+        origin = 'native';
+      } else if (hasRegistryData && !publisher) {
+        origin = 'custom';
+      } else if (!hasRegistryData) {
+        origin = 'custom';
+      }
       return {
         tabName: tabName,
         addinFile: resolved.addinFile || lookup.file || null,
         url: resolved.url || lookup.url || '',
+        origin: origin,
       };
     });
     const nativeEntries = [...nativePanels].map(panelName => ({
@@ -1823,6 +1860,7 @@
       addinFile: null,
       url: '',
       native: true,
+      origin: 'native',
     }));
     return addinEntries.concat(nativeEntries);
   }
@@ -1881,7 +1919,9 @@
           cls = ' unknown';
         }
         const badge = native ? ' Native' : (resolved || loaded ? ' \u2713' : (isUnknown ? ' ?' : ''));
-        return `<span class="addin-chip${cls}" title="${title}">${name}${badge}</span>`;
+        var originVal = addin.origin || (native ? 'native' : '');
+        var originBadge = originVal && !native ? ` <span class="addin-origin origin-${originVal === 'third-party' ? 'thirdparty' : originVal}">${originVal}</span>` : '';
+        return `<span class="addin-chip${cls}" title="${title}">${name}${badge}${originBadge}</span>`;
       }).join('');
     }
   }

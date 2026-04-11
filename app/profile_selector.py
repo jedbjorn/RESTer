@@ -208,9 +208,9 @@ class ProfileSelectorAPI:
 
             is_required = tab_name in required or name in required
             is_protected = info.get('protected', False) or addin_file in protected_lower
-            is_autodesk = info.get('autodesk', False)
+            is_native = info.get('origin') == 'native'
 
-            if is_protected or is_autodesk:
+            if is_protected or is_native:
                 continue  # always protected — don't clutter the overlay
             elif is_required:
                 staying.append(info)
