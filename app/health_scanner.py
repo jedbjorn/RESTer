@@ -280,11 +280,14 @@ def capture_health_snapshot(revit_version=None, revit_build=None,
     # Gather WMI data in one shot
     wmi = _get_wmi_data()
 
-    from rst_lib import build_identity
+    import socket
 
     snapshot = {
         'captureTimestamp': datetime.now(timezone.utc).isoformat(),
-        'identity': build_identity(revit_username),
+        'identity': {
+            'windowsUsername': os.environ.get('USERNAME', os.environ.get('USER', '')),
+            'deviceName':     socket.gethostname(),
+        },
         'ram':     _get_ram(),
         'cpu':     _get_cpu(),
         'gpu':     _parse_gpu(wmi),
