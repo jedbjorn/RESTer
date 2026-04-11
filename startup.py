@@ -214,8 +214,16 @@ def _hex_to_color(hex_str, alpha=1.0):
         return None
 
 
-def _make_brush(hex_color, alpha=1.0):
-    """Create a DrawingBrush that paints a rounded rectangle."""
+PANEL_CORNER_RADIUS_PX = 5  # fixed pixel radius for panel backgrounds
+
+
+def _make_brush(hex_color, alpha=1.0, width=0, height=0):
+    """Create a DrawingBrush that paints a rounded rectangle.
+
+    When width/height are provided, RadiusX/Y are calculated to achieve
+    a fixed pixel radius (PANEL_CORNER_RADIUS_PX). Otherwise uses a
+    reasonable default for initial rendering before layout.
+    """
     try:
         import clr
         clr.AddReference('PresentationCore')
@@ -232,11 +240,19 @@ def _make_brush(hex_color, alpha=1.0):
 
         fill = SolidColorBrush(color)
 
+        # Calculate relative radius from fixed pixel value
+        if width > 0 and height > 0:
+            radius_x = PANEL_CORNER_RADIUS_PX / width
+            radius_y = PANEL_CORNER_RADIUS_PX / height
+        else:
+            radius_x = 0.03
+            radius_y = 0.08
+
         # RectangleGeometry with rounded corners
         from System.Windows.Media import RectangleGeometry
         rect_geo = RectangleGeometry(Rect(0, 0, 1, 1))
-        rect_geo.RadiusX = 0.12
-        rect_geo.RadiusY = 0.15
+        rect_geo.RadiusX = radius_x
+        rect_geo.RadiusY = radius_y
 
         drawing = GeometryDrawing(fill, None, rect_geo)
 
@@ -250,7 +266,8 @@ def _make_brush(hex_color, alpha=1.0):
                 brush.TileMode = getattr(TileMode, 'None')
             except Exception:
                 pass  # leave default TileMode
-        log.debug('Created rounded DrawingBrush for %s (alpha=%.2f)', hex_color, alpha)
+        log.debug('Created rounded DrawingBrush for %s (alpha=%.2f, rx=%.4f, ry=%.4f)',
+                  hex_color, alpha, radius_x, radius_y)
         return brush
     except Exception as e:
         log.warning('DrawingBrush failed for %s: %s — falling back to solid', hex_color, e)
@@ -371,13 +388,27 @@ def _build_ribbon(profile):
             panel_source.Id = 'REST_Panel_' + panel_name.replace(' ', '_')
             aw_panel.Source = panel_source
 
-            # Apply panel color with opacity
+            # Apply panel color with opacity (initial brush with default radius)
             brush = _make_brush(panel_color, panel_opacity)
             if brush:
                 try:
                     aw_panel.CustomPanelBackground = brush
                     aw_panel.CustomPanelTitleBarBackground = brush
                     log.debug('Applied color %s to panel %s', panel_color, panel_name)
+
+                    # Recalculate radius on SizeChanged for fixed-pixel corners
+                    def _on_size_changed(sender, args, _color=panel_color, _alpha=panel_opacity):
+                        try:
+                            w = sender.ActualWidth
+                            h = sender.ActualHeight
+                            if w > 10 and h > 10:
+                                sized_brush = _make_brush(_color, _alpha, w, h)
+                                if sized_brush:
+                                    sender.CustomPanelBackground = sized_brush
+                                    sender.CustomPanelTitleBarBackground = sized_brush
+                        except Exception:
+                            pass
+                    aw_panel.SizeChanged += _on_size_changed
                 except Exception as e:
                     log.debug('Could not apply panel color: %s', e)
 
@@ -658,7 +689,8 @@ def _style_rst_admin_panels():
 
         ribbon = ComponentManager.Ribbon
         light_grey = '#8a8e96'
-        brush = _make_brush(light_grey, 0.35)
+        admin_alpha = 0.35
+        brush = _make_brush(light_grey, admin_alpha)
 
         for tab in ribbon.Tabs:
             try:
@@ -675,6 +707,19 @@ def _style_rst_admin_panels():
                         if brush:
                             panel.CustomPanelBackground = brush
                             panel.CustomPanelTitleBarBackground = brush
+
+                            def _on_admin_size(sender, args, _c=light_grey, _a=admin_alpha):
+                                try:
+                                    w = sender.ActualWidth
+                                    h = sender.ActualHeight
+                                    if w > 10 and h > 10:
+                                        sized = _make_brush(_c, _a, w, h)
+                                        if sized:
+                                            sender.CustomPanelBackground = sized
+                                            sender.CustomPanelTitleBarBackground = sized
+                                except Exception:
+                                    pass
+                            panel.SizeChanged += _on_admin_size
                         log.debug('Styled RST admin panel: %s', pid)
                     except Exception as e:
                         log.debug('Could not style panel: %s', e)
