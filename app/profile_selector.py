@@ -538,13 +538,14 @@ class ProfileSelectorAPI:
             window.destroy()
 
 
-def _run_health_scan(revit_version, revit_username):
+def _run_health_scan(revit_version, revit_build, revit_username):
     """Run health scan in background thread so it doesn't block UI."""
     try:
         from health_scanner import capture_health_snapshot, save_health_snapshot
         from rst_lib import HEALTH_SCAN_PATH
         snapshot = capture_health_snapshot(
             revit_version=revit_version,
+            revit_build=revit_build,
             revit_username=revit_username,
         )
         save_health_snapshot(snapshot, HEALTH_SCAN_PATH)
@@ -564,7 +565,7 @@ if __name__ == '__main__':
     import threading
     _health_thread = threading.Thread(
         target=_run_health_scan,
-        args=(_revit_ver, _loader_data.get('revit_username')),
+        args=(_revit_ver, _loader_data.get('revit_build'), _loader_data.get('revit_username')),
         daemon=True,
     )
     _health_thread.start()

@@ -30,8 +30,10 @@ if os.path.exists(_active_path):
 
 # Collect Revit session data for Profile Selector
 _revit_version = None
+_revit_build = None
 try:
     _revit_version = str(__revit__.Application.VersionNumber)
+    _revit_build = str(__revit__.Application.VersionBuild)
 except Exception:
     pass
 
@@ -150,6 +152,7 @@ _loader_data_path = os.path.join(_root, 'app', '_loader_data.json')
 with io.open(_loader_data_path, 'w', encoding='utf-8') as f:
     json.dump({
         'revit_version': _revit_version,
+        'revit_build': _revit_build,
         'revit_username': _revit_username,
         'loaded_addins': _loaded_addins,
         'all_tabs': _all_tabs,
