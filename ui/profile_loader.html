@@ -1159,16 +1159,17 @@
             : originVal === 'custom' ? 'origin-custom'
             : originVal === 'unknown' ? 'origin-unknown' : '';
 
-          var downloadUrl = addin.url || (known ? known.url : '');
-          var statusHtml = (statusCls === 'not-found' && downloadUrl)
-            ? `<a href="${escHtml(downloadUrl)}" target="_blank" class="addin-status ${statusCls}" title="${statusTitle}" style="text-decoration:none;cursor:pointer">${statusLabel} ↗</a>`
-            : `<span class="addin-status ${statusCls}" title="${statusTitle}">${statusLabel}</span>`;
+          var addinUrl = addin.url || (known ? known.url : '');
+          var urlHtml = addinUrl
+            ? `<a href="${escHtml(addinUrl)}" target="_blank" style="font-family:'DM Mono',monospace;font-size:9px;color:var(--accent);text-decoration:none;flex-shrink:0" onmouseenter="this.style.textDecoration='underline'" onmouseleave="this.style.textDecoration='none'" title="${escHtml(addinUrl)}">info ↗</a>`
+            : '';
 
           return `<div class="addin-row">
             <span class="addin-row-name">${escHtml(tabName)}</span>
             ${originVal ? `<span class="addin-origin ${originCls}">${originVal}</span>` : ''}
             <span class="addin-file">${fileCol}</span>
-            ${statusHtml}
+            ${urlHtml}
+            <span class="addin-status ${statusCls}" title="${statusTitle}">${statusLabel}</span>
           </div>`;
         }).join('')}
       `;
