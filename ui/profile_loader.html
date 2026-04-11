@@ -453,6 +453,10 @@
     border: 1px solid rgba(245,158,11,0.25);
     color: var(--warn);
   }
+  a.addin-status.not-found:hover {
+    background: rgba(245,158,11,0.18);
+    border-color: rgba(245,158,11,0.5);
+  }
   .addin-status.disabled {
     background: rgba(245,158,11,0.1);
     border: 1px solid rgba(245,158,11,0.25);
@@ -1145,7 +1149,7 @@
             statusCls = 'not-found';
             statusLabel = 'Not Found';
             var url = addin.url || (known ? known.url : '');
-            statusTitle = url ? 'Not found \u2014 download: ' + url : 'Not found on this machine';
+            statusTitle = url ? 'Click to download' : 'Not found on this machine';
           }
 
           var originVal = configEntry ? (configEntry.origin || '') : (native ? 'native' : '');
@@ -1155,11 +1159,16 @@
             : originVal === 'custom' ? 'origin-custom'
             : originVal === 'unknown' ? 'origin-unknown' : '';
 
+          var downloadUrl = addin.url || (known ? known.url : '');
+          var statusHtml = (statusCls === 'not-found' && downloadUrl)
+            ? `<a href="${escHtml(downloadUrl)}" target="_blank" class="addin-status ${statusCls}" title="${statusTitle}" style="text-decoration:none;cursor:pointer">${statusLabel} ↗</a>`
+            : `<span class="addin-status ${statusCls}" title="${statusTitle}">${statusLabel}</span>`;
+
           return `<div class="addin-row">
             <span class="addin-row-name">${escHtml(tabName)}</span>
             ${originVal ? `<span class="addin-origin ${originCls}">${originVal}</span>` : ''}
             <span class="addin-file">${fileCol}</span>
-            <span class="addin-status ${statusCls}" title="${statusTitle}">${statusLabel}</span>
+            ${statusHtml}
           </div>`;
         }).join('')}
       `;
