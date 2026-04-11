@@ -395,8 +395,9 @@ def _build_ribbon(profile):
                     stack_name = slot.get('name', '')
                     stack_def_data = stacks.get(stack_name)
                     if stack_def_data:
-                        for btn in _create_stack_buttons(stack_name, stack_def_data):
-                            aw_panel.Source.Items.Add(btn)
+                        row_panel = _create_stack_row_panel(stack_name, stack_def_data)
+                        if row_panel:
+                            aw_panel.Source.Items.Add(row_panel)
                     else:
                         log.warning('Stack not found: %s', stack_name)
 
@@ -488,16 +489,20 @@ def _create_tool_button(slot):
         return None
 
 
-def _create_stack_buttons(stack_name, stack_def):
-    """Create a list of standard-sized text-only buttons for a stack.
-    Added directly to the panel — the ribbon auto-stacks consecutive
-    standard-sized items vertically in groups of up to 3."""
-    from Autodesk.Windows import RibbonButton, RibbonItemSize
+def _create_stack_row_panel(stack_name, stack_def):
+    """Create a RibbonRowPanel containing 2-3 standard-sized buttons stacked vertically.
+    AdWindows requires an explicit RibbonRowPanel to stack items — adding Standard-sized
+    buttons directly to a panel does not auto-stack them."""
+    from Autodesk.Windows import RibbonButton, RibbonItemSize, RibbonRowPanel
 
     tools = stack_def.get('tools', [])
-    buttons = []
+    if not tools or len(tools) > 3:
+        log.warning('Stack %s has %d tools (must be 2-3), skipping', stack_name, len(tools))
+        return None
 
-    for tool in tools:
+    row_panel = RibbonRowPanel()
+
+    for i, tool in enumerate(tools):
         try:
             tool_name = tool.get('baseName', tool.get('name', 'Tool'))
             full_name = tool.get('name', tool_name)
@@ -543,13 +548,16 @@ def _create_stack_buttons(stack_name, stack_def):
                 except Exception:
                     pass
 
-            buttons.append(btn)
+            row_panel.Items.Add(btn)
+            # Add row break between items (not after last)
+            if i < len(tools) - 1:
+                row_panel.Items.Add(RibbonRowPanel.RibbonRowBreak())
             log.debug('  Stack tool: %s -> %s', tool_name, command_id)
         except Exception as e:
             log.error('Failed to create stack button %s: %s', tool_name, e)
 
-    log.debug('Created stack: %s (%d tools)', stack_name, len(buttons))
-    return buttons
+    log.debug('Created stack row panel: %s (%d tools)', stack_name, row_panel.Items.Count)
+    return row_panel
 
 
 def _make_command_handler(command_id):
