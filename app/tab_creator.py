@@ -18,7 +18,8 @@ log = get_logger('tab_creator')
 
 from rst_lib import (
     EXT_ROOT, PROFILES_DIR, ICONS_DIR, ICONPACK_DIR, ACTIVE_PROFILE_PATH, UI_DIR,
-    safe_filename, find_profile, get_all_profile_names, get_active_profile_name,
+    safe_filename, find_profile, find_profile_by_id, get_all_profile_names,
+    get_active_profile_name, get_active_profile_id, ensure_profile_id,
 )
 from addin_scanner import (
     load_addin_lookup, get_addins_dirs, _find_all_addin_files,
@@ -218,17 +219,25 @@ class TabCreatorAPI:
             return {'ok': False, 'error': 'Invalid JSON: ' + str(e)}
 
         try:
+            # Ensure profile has an ID
+            ensure_profile_id(profile)
+
             raw_name = profile.get('profile', 'Untitled')
+            profile_id = profile.get('id')
             profile_name = safe_filename(raw_name)
             export_date = safe_filename(profile.get('exportDate', 'unknown'))
             filename = '%s_%s.json' % (profile_name, export_date)
 
-            # Check if a different profile with this name exists
-            existing_fname, existing_data = find_profile(raw_name)
+            # Check if existing profile with same ID or name exists
+            existing_fname, _ = find_profile_by_id(profile_id)
+            if not existing_fname:
+                existing_fname, _ = find_profile(raw_name)
             if existing_fname:
-                # Check if the active profile has this name (file may be locked by Revit)
+                # Check if the active profile is this one (file may be locked by Revit)
+                active_id = get_active_profile_id()
                 active_name = get_active_profile_name()
-                if active_name and active_name == raw_name:
+                if (active_id and active_id == profile_id) or \
+                   (active_name and active_name == raw_name):
                     log.error('Cannot overwrite active profile: %s', raw_name)
                     return {'ok': False, 'error': 'Cannot overwrite a profile that is currently loaded in Revit. Use a different name.'}
                 os.remove(os.path.join(PROFILES_DIR, existing_fname))
@@ -236,7 +245,7 @@ class TabCreatorAPI:
 
             dest_path = os.path.join(PROFILES_DIR, filename)
             with open(dest_path, 'w', encoding='utf-8') as f:
-                f.write(json_str)
+                json.dump(profile, f, indent=2)
             log.info('Saved to: %s', dest_path)
 
             desktop = os.path.join(os.environ.get('USERPROFILE', ''), 'Desktop')
@@ -315,35 +324,42 @@ class TabCreatorAPI:
                 try:
                     with open(os.path.join(PROFILES_DIR, fname), 'r', encoding='utf-8') as f:
                         data = json.load(f)
-                    profiles.append(data.get('profile', fname))
+                    ensure_profile_id(data)
+                    profiles.append({'id': data.get('id'), 'name': data.get('profile', fname)})
                 except (json.JSONDecodeError, IOError):
                     continue
-        log.info('Available profiles: %s', profiles)
+        log.info('Available profiles: %d', len(profiles))
         return profiles
 
-    def load_profile_into_editor(self, profile_name):
-        log.info('Loading profile into editor: %s', profile_name)
-        _, data = find_profile(profile_name)
+    def load_profile_into_editor(self, profile_name, profile_id=None):
+        log.info('Loading profile into editor: %s [id=%s]', profile_name, profile_id)
+        # Find by ID first, fall back to name
+        _, data = None, None
+        if profile_id:
+            _, data = find_profile_by_id(profile_id)
+        if not data:
+            _, data = find_profile(profile_name)
         if not data:
             log.error('Profile not found: %s', profile_name)
             return None
 
-        # Check if this profile is currently loaded in Revit
-        active_name = get_active_profile_name()
-        if active_name and active_name == profile_name:
-            # Make a copy for editing
-            copy_name = profile_name + ' (Copy)'
-            # Ensure unique copy name
-            existing = get_all_profile_names()
-            counter = 1
-            while copy_name in existing:
-                counter += 1
-                copy_name = '%s (Copy %d)' % (profile_name, counter)
-            data['profile'] = copy_name
-            log.info('Profile is active in Revit. Created copy: %s', copy_name)
-            return {'_copied': True, '_message': 'Profile currently loaded. A copy has been made for editing.', **data}
+        # Ensure it has an ID
+        ensure_profile_id(data)
 
-        log.info('Found profile: %s', profile_name)
+        # Check if this profile is currently loaded in Revit
+        active_id = get_active_profile_id()
+        is_active = (active_id and active_id == data.get('id')) or \
+                    (get_active_profile_name() == data.get('profile'))
+        if is_active:
+            # Give it a new ID so saving won't overwrite the active one
+            import copy as _copy
+            data = _copy.deepcopy(data)
+            data['id'] = None
+            ensure_profile_id(data)
+            log.info('Profile is active in Revit. Assigned new ID for editing: %s', data['id'])
+            return {'_copied': True, '_message': 'Profile currently loaded. Saving will create a new copy.', **data}
+
+        log.info('Found profile: %s [id=%s]', data.get('profile'), data.get('id'))
         return data
 
     def pick_branding_logo(self):

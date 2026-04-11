@@ -1621,6 +1621,7 @@
 
   // ── STATE ──────────────────────────────────────────────────────────────────
   const state = {
+    currentProfileId: null,
     currentProfile: 'New Profile',
     expandedStack:  null,   // name of the stack whose editor is open, or null
     panelOpacity:   100,    // 10–100, applies to all panel background colors
@@ -2605,6 +2606,7 @@
     });
 
     const config = {
+      id:             state.currentProfileId,
       profile:        state.currentProfile,
       tab:            tabName,
       min_version:    minVersion,
@@ -3183,8 +3185,8 @@
   }
 
   // ── PROFILE DROPDOWN ─────────────────────────────────────────────────────
-  function populateProfileDropdown(profileNames) {
-    state.profileList = profileNames || [];
+  function populateProfileDropdown(profileEntries) {
+    state.profileList = profileEntries || [];
     const menu    = document.getElementById('profileMenu');
     const divider = menu.querySelector('.profile-menu-divider');
     // Remove all existing profile items (but keep divider and "+ New" item)
@@ -3198,13 +3200,15 @@
       closeProfileMenu();
     });
     menu.insertBefore(newOpt, divider);
-    // Insert each fetched profile
-    state.profileList.forEach(name => {
+    // Insert each fetched profile — entries are {id, name}
+    state.profileList.forEach(entry => {
       const item = document.createElement('div');
-      item.className = 'profile-menu-item' + (state.currentProfile === name ? ' current' : '');
-      item.textContent = name;
+      const isCurrent = (state.currentProfileId && state.currentProfileId === entry.id) ||
+                        state.currentProfile === entry.name;
+      item.className = 'profile-menu-item' + (isCurrent ? ' current' : '');
+      item.textContent = entry.name;
       item.addEventListener('click', () => {
-        loadExistingProfile(name);
+        loadExistingProfile(entry.name, entry.id);
         closeProfileMenu();
       });
       menu.insertBefore(item, divider);
@@ -3212,6 +3216,7 @@
   }
 
   function loadNewProfile() {
+    state.currentProfileId = null;
     state.currentProfile = 'New Profile';
     document.getElementById('profileNameDisplay').textContent = 'New Profile';
     state.stacks = {};
@@ -3226,9 +3231,9 @@
     renderAll();
   }
 
-  function loadExistingProfile(name) {
+  function loadExistingProfile(name, id) {
     if (window.pywebview && window.pywebview.api && window.pywebview.api.load_profile_into_editor) {
-      window.pywebview.api.load_profile_into_editor(name).then(profile => {
+      window.pywebview.api.load_profile_into_editor(name, id).then(profile => {
         if (!profile) return;
         if (profile._copied) {
           showToast('Copy Created', profile._message || 'Profile currently loaded. A copy has been made for editing.', 5000);
@@ -3241,7 +3246,8 @@
   }
 
   function applyProfileToEditor(profile) {
-    // Set profile name
+    // Set profile ID and name
+    state.currentProfileId = profile.id || null;
     state.currentProfile = profile.profile || 'Loaded Profile';
     document.getElementById('profileNameDisplay').textContent = state.currentProfile;
 

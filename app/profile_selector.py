@@ -12,7 +12,8 @@ log = get_logger('profile_selector')
 from rst_lib import (
     EXT_ROOT, PROFILES_DIR, ACTIVE_PROFILE_PATH, UI_DIR,
     REQUIRED_PROFILE_FIELDS, validate_profile,
-    safe_filename, find_profile,
+    safe_filename, find_profile, find_profile_by_id,
+    ensure_profile_id, generate_profile_id,
 )
 
 _html_path = os.path.join(UI_DIR, 'profile_loader.html')
@@ -37,6 +38,7 @@ def _write_blank_profile():
     """Write a blank active profile so startup.py builds an empty RST tab."""
     blank = {
         'profile': None,
+        'profile_id': None,
         'profile_file': None,
         'loaded_at': datetime.datetime.now().isoformat(),
         'disable_non_required': False,
@@ -266,6 +268,12 @@ class ProfileSelectorAPI:
                 try:
                     with open(fpath, 'r', encoding='utf-8') as f:
                         profile = json.load(f)
+                    # Auto-migrate: assign ID to legacy profiles missing one
+                    if not profile.get('id'):
+                        ensure_profile_id(profile)
+                        with open(fpath, 'w', encoding='utf-8') as f:
+                            json.dump(profile, f, indent=2)
+                        log.info('Assigned ID to legacy profile: %s → %s', fname, profile['id'])
                     profile['_filename'] = fname
                     profiles.append(profile)
                 except (json.JSONDecodeError, IOError, UnicodeDecodeError) as e:
@@ -277,18 +285,19 @@ class ProfileSelectorAPI:
     def get_active_profile(self):
         if not os.path.exists(ACTIVE_PROFILE_PATH):
             log.debug('No active_profile.json found')
-            return {'name': None, 'hidden_tabs': [], 'disable_non_required': False}
+            return {'id': None, 'name': None, 'hidden_tabs': [], 'disable_non_required': False}
         try:
             with open(ACTIVE_PROFILE_PATH, 'r', encoding='utf-8') as f:
                 data = json.load(f)
+            pid = data.get('profile_id')
             name = data.get('profile')
             hidden = data.get('hidden_tabs', [])
             disable = data.get('disable_non_required', False)
-            log.info('Active profile: %s (hidden: %d tabs, disable=%s)', name, len(hidden), disable)
-            return {'name': name, 'hidden_tabs': hidden, 'disable_non_required': disable}
+            log.info('Active profile: %s [%s] (hidden: %d tabs, disable=%s)', name, pid, len(hidden), disable)
+            return {'id': pid, 'name': name, 'hidden_tabs': hidden, 'disable_non_required': disable}
         except (json.JSONDecodeError, IOError) as e:
             log.error('Failed to read active_profile.json: %s', e)
-            return {'name': None, 'hidden_tabs': [], 'disable_non_required': False}
+            return {'id': None, 'name': None, 'hidden_tabs': [], 'disable_non_required': False}
 
     def add_profile(self):
         log.info('Opening file dialog for profile import')
@@ -319,28 +328,34 @@ class ProfileSelectorAPI:
             log.error('Missing required fields: %s', missing)
             return {'ok': False, 'error': 'Missing fields: ' + ', '.join(sorted(missing))}
 
+        # Ensure imported profile has an ID
+        ensure_profile_id(profile)
+
         safe_name = safe_filename(profile['profile'])
         safe_date = safe_filename(profile['exportDate'])
         dest_name = '%s_%s.json' % (safe_name, safe_date)
 
-        # Overwrite existing profile with same name
-        existing_fname, _ = find_profile(profile['profile'])
+        # Overwrite existing profile with same ID or same name
+        existing_fname, _ = find_profile_by_id(profile['id'])
+        if not existing_fname:
+            existing_fname, _ = find_profile(profile['profile'])
         if existing_fname:
             os.remove(os.path.join(PROFILES_DIR, existing_fname))
             log.info('Overwriting existing profile: %s', existing_fname)
 
         dest_path = os.path.join(PROFILES_DIR, dest_name)
-        shutil.copy2(file_path, dest_path)
-        log.info('Profile saved: %s', dest_name)
+        with open(dest_path, 'w', encoding='utf-8') as f:
+            json.dump(profile, f, indent=2)
+        log.info('Profile saved: %s (id=%s)', dest_name, profile['id'])
 
         profile['_filename'] = dest_name
         return {'ok': True, 'profile': profile}
 
-    def load_profile(self, profile_name, disable_non_required, revit_version=None, hidden_tabs=None):
-        log.info('Loading profile: %s (disable=%s, hidden_tabs=%s, revit=%s)',
-                 profile_name, disable_non_required, hidden_tabs, revit_version)
+    def load_profile(self, profile_name, disable_non_required, revit_version=None, hidden_tabs=None, profile_id=None):
+        log.info('Loading profile: %s [id=%s] (disable=%s, hidden_tabs=%s, revit=%s)',
+                 profile_name, profile_id, disable_non_required, hidden_tabs, revit_version)
         try:
-            return self._load_profile_inner(profile_name, disable_non_required, revit_version, hidden_tabs)
+            return self._load_profile_inner(profile_name, disable_non_required, revit_version, hidden_tabs, profile_id)
         except RecursionError:
             import traceback
             log.error('RecursionError in load_profile:\n%s', traceback.format_exc())
@@ -350,11 +365,18 @@ class ProfileSelectorAPI:
             log.error('Unexpected error in load_profile:\n%s', traceback.format_exc())
             return {'ok': False, 'warnings': ['Internal error: ' + str(e)]}
 
-    def _load_profile_inner(self, profile_name, disable_non_required, revit_version=None, hidden_tabs=None):
-        profile_filename, profile_data = find_profile(profile_name)
+    def _load_profile_inner(self, profile_name, disable_non_required, revit_version=None, hidden_tabs=None, profile_id=None):
+        # Find by ID first, fall back to name
+        profile_filename, profile_data = None, None
+        if profile_id:
+            profile_filename, profile_data = find_profile_by_id(profile_id)
         if not profile_data:
-            log.error('Profile not found: %s', profile_name)
+            profile_filename, profile_data = find_profile(profile_name)
+        if not profile_data:
+            log.error('Profile not found: %s (id=%s)', profile_name, profile_id)
             return {'ok': False, 'warnings': ['Profile not found: ' + profile_name]}
+        # Ensure profile has an ID
+        ensure_profile_id(profile_data)
 
         if not revit_version:
             revit_version = self._revit_version
@@ -459,7 +481,8 @@ class ProfileSelectorAPI:
 
         # Write active_profile.json
         active = {
-            'profile': profile_name,
+            'profile': profile_data.get('profile', profile_name),
+            'profile_id': profile_data.get('id'),
             'profile_file': profile_filename,
             'loaded_at': datetime.datetime.now().isoformat(),
             'hidden_tabs': hidden_tabs or [],
@@ -475,9 +498,14 @@ class ProfileSelectorAPI:
         log.info('Profile loaded: %s (warnings: %s, restart: %s)', profile_name, warnings, restart_needed)
         return {'ok': True, 'warnings': warnings, 'restart_needed': restart_needed}
 
-    def remove_profile(self, profile_name):
-        log.info('Removing profile: %s', profile_name)
-        profile_filename, _ = find_profile(profile_name)
+    def remove_profile(self, profile_name, profile_id=None):
+        log.info('Removing profile: %s [id=%s]', profile_name, profile_id)
+        # Find by ID first, fall back to name
+        profile_filename = None
+        if profile_id:
+            profile_filename, _ = find_profile_by_id(profile_id)
+        if not profile_filename:
+            profile_filename, _ = find_profile(profile_name)
         if not profile_filename:
             log.error('Profile not found for removal: %s', profile_name)
             return {'ok': False, 'error': 'Profile not found'}
@@ -490,7 +518,9 @@ class ProfileSelectorAPI:
             if os.path.exists(ACTIVE_PROFILE_PATH):
                 with open(ACTIVE_PROFILE_PATH, 'r', encoding='utf-8') as f:
                     active = json.load(f)
-                if active.get('profile') == profile_name:
+                is_active = (profile_id and active.get('profile_id') == profile_id) or \
+                            active.get('profile') == profile_name
+                if is_active:
                     _write_blank_profile()
                     log.info('Wrote blank profile (deleted profile was active)')
         except (json.JSONDecodeError, IOError) as e:

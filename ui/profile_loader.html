@@ -828,11 +828,17 @@
   const profiles = [];
 
   // ── STATE ─────────────────────────────────────────────────────────────────────
+  let activeProfileId   = null;
   let activeProfileName = null;
   let selectedProfile   = null;
   let currentRevitVersion = null;
 
   // ── HELPERS ───────────────────────────────────────────────────────────────────
+
+  function _isActiveProfile(p) {
+    if (activeProfileId && p.id) return p.id === activeProfileId;
+    return p.profile === activeProfileName;
+  }
 
   // Normalize requiredAddins — handles both old format (string[]) and new format (object[])
   // Always returns [{tabName, addinFile, url, native?}]
@@ -964,11 +970,11 @@
     count.textContent = profiles.length;
 
     scroll.innerHTML = profiles.map((p, i) => `
-      <div class="profile-card ${p.profile === activeProfileName ? 'active-profile' : ''}"
+      <div class="profile-card ${_isActiveProfile(p) ? 'active-profile' : ''}"
            data-idx="${i}" onclick="selectCard(this, ${i})">
         <div class="card-top">
           <div class="card-name">${escHtml(p.profile)}</div>
-          ${p.profile === activeProfileName ? '<div class="card-badge loaded">● Loaded</div>' : ''}
+          ${_isActiveProfile(p) ? '<div class="card-badge loaded">● Loaded</div>' : ''}
         </div>
         <div class="card-meta">
           <div class="meta-item"><span>Tab</span><span class="meta-val">${escHtml(p.tab)}</span></div>
@@ -1169,11 +1175,12 @@
     var disableToggle = document.getElementById('disableToggle');
     var disableUnused = disableToggle ? disableToggle.checked : false;
 
-    window.pywebview.api.load_profile(selectedProfile.profile, disableUnused, currentRevitVersion, hiddenTabs).then(function(result) {
+    window.pywebview.api.load_profile(selectedProfile.profile, disableUnused, currentRevitVersion, hiddenTabs, selectedProfile.id).then(function(result) {
       if (!result.ok) {
         RSTmsgInform('Load Failed', 'Failed to load profile.');
         return;
       }
+      activeProfileId = selectedProfile.id;
       activeProfileName = selectedProfile.profile;
 
       var lines = [];
@@ -1293,13 +1300,14 @@
   // Removes active_profile.json so Revit no longer loads this profile,
   // but does NOT delete the profile JSON from the profiles directory.
   function unloadProfile() {
-    if (!activeProfileName) { RSTmsgInform('No Profile', 'No profile is currently loaded.'); return; }
+    if (!activeProfileName && !activeProfileId) { RSTmsgInform('No Profile', 'No profile is currently loaded.'); return; }
 
     window.pywebview.api.unload_profile().then(function(result) {
       if (!result.ok) {
         RSTmsgInform('Unload Failed', 'Failed to unload profile.');
         return;
       }
+      activeProfileId = null;
       activeProfileName = null;
       selectedProfile = null;
       renderCards();
@@ -1315,7 +1323,8 @@
   function confirmRemove() {
     if (!selectedProfile) return;
     const name = selectedProfile.profile;
-    const isLoaded = name === activeProfileName;
+    const pid = selectedProfile.id;
+    const isLoaded = _isActiveProfile(selectedProfile);
 
     var body = 'This deletes the local copy. The original file shared by the admin is not affected.';
     if (isLoaded) {
@@ -1326,14 +1335,14 @@
       if (!ok) return;
 
       function doDelete() {
-        window.pywebview.api.remove_profile(name).then(function(result) {
+        window.pywebview.api.remove_profile(name, pid).then(function(result) {
           if (!result.ok) {
             RSTmsgInform('Delete Failed', 'Failed to delete profile.');
             return;
           }
-          var idx = profiles.findIndex(function(p) { return p.profile === name; });
+          var idx = profiles.findIndex(function(p) { return (pid && p.id === pid) || p.profile === name; });
           if (idx !== -1) profiles.splice(idx, 1);
-          if (isLoaded) activeProfileName = null;
+          if (isLoaded) { activeProfileId = null; activeProfileName = null; }
           selectedProfile = null;
           renderCards();
           var firstCard = document.querySelector('.profile-card');
@@ -1391,13 +1400,14 @@
 
       // Highlight the active profile and load previous hidden tabs
       window.pywebview.api.get_active_profile().then(function(result) {
-        if (result && result.name) {
+        if (result && (result.name || result.id)) {
+          activeProfileId = result.id;
           activeProfileName = result.name;
           previousHiddenTabs = result.hidden_tabs || [];
           var disableToggle = document.getElementById('disableToggle');
           if (disableToggle) disableToggle.checked = !!result.disable_non_required;
           renderCards();
-          var idx = profiles.findIndex(function(p) { return p.profile === result.name; });
+          var idx = profiles.findIndex(function(p) { return _isActiveProfile(p); });
           var cards = document.querySelectorAll('.profile-card');
           if (idx !== -1 && cards[idx]) selectCard(cards[idx], idx);
         }
