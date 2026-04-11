@@ -29,6 +29,7 @@ from addin_scanner import (
 from user_config import (
     load_user_config,
     save_user_config,
+    save_addin_defaults,
     build_user_config,
     write_intent_log,
     clear_intent_log,
@@ -79,6 +80,13 @@ class TabCreatorAPI:
     def get_addin_lookup(self):
         return load_addin_lookup()
 
+    def get_addin_defaults(self):
+        """Return addin defaults from data/addin_scan.json.
+        Used by profile manager to populate protectedAddins/lockedAddins."""
+        from rst_lib import ADDIN_SCAN_PATH, load_json_safe
+        data = load_json_safe(ADDIN_SCAN_PATH, {})
+        return data.get('addins', {})
+
     def get_revit_version(self):
         ver = _revit_data.get('revit_version')
         log.info('Revit version: %s', ver)
@@ -115,6 +123,7 @@ class TabCreatorAPI:
                 load_addin_lookup(),
             )
             save_user_config(config)
+            save_addin_defaults(config)
         return config
 
     def get_disabled_addins(self):

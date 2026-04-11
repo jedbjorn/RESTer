@@ -62,6 +62,7 @@ from addin_scanner import (
 from user_config import (
     load_user_config,
     save_user_config,
+    save_addin_defaults,
     build_user_config,
     append_new_addins,
     update_addin_states,
@@ -147,6 +148,7 @@ class ProfileSelectorAPI:
                     self._addin_panels,
                 )
                 save_user_config(config)
+                save_addin_defaults(config)
             else:
                 # Append any new add-ins from current session
                 config, added = append_new_addins(
@@ -158,6 +160,7 @@ class ProfileSelectorAPI:
                 )
                 if added:
                     save_user_config(config)
+                    save_addin_defaults(config)
 
             return config
         except Exception as e:

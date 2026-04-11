@@ -1604,6 +1604,7 @@
   // Unknown sourceTabs (not in this table) are flagged amber in the header chips
   // so the admin knows the end-user side will fall back to fuzzy / community match.
   let ADDIN_LOOKUP = {};
+  let ADDIN_DEFAULTS = {};
 
   // ── LOADED ADD-INS (from Revit session) ────────────────────────────────────
   let LOADED_ADDINS = [];
@@ -2666,6 +2667,17 @@
       }
     });
 
+    // Build protectedAddins and lockedAddins from scan defaults
+    var protectedAddins = [];
+    var lockedAddins = [];
+    if (ADDIN_DEFAULTS) {
+      Object.keys(ADDIN_DEFAULTS).forEach(function(name) {
+        var d = ADDIN_DEFAULTS[name];
+        if (d.locked) lockedAddins.push(name);
+        if (d.protected) protectedAddins.push(name);
+      });
+    }
+
     const config = {
       id:             state.currentProfileId,
       profile:        state.currentProfile,
@@ -2674,6 +2686,8 @@
       exportDate:     date,
       panelOpacity:   state.panelOpacity,
       requiredAddins: getDetectedAddins(),
+      protectedAddins: protectedAddins,
+      lockedAddins:   lockedAddins,
       hideRules:      [],       // suppression handled by the loader, not TabCreator
       stacks:         stackDefs,
       // Slots carry { type, name, icon, commandId, iconFile } — fully self-contained,
@@ -3457,6 +3471,14 @@
         const lookup = await window.pywebview.api.get_addin_lookup();
         if (lookup && typeof lookup === 'object') {
           ADDIN_LOOKUP = lookup;
+        }
+      }
+
+      // Fetch addin defaults (locked/protected from scan)
+      if (window.pywebview && window.pywebview.api && window.pywebview.api.get_addin_defaults) {
+        const defaults = await window.pywebview.api.get_addin_defaults();
+        if (defaults && typeof defaults === 'object') {
+          ADDIN_DEFAULTS = defaults;
         }
       }
 

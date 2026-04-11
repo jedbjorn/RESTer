@@ -102,6 +102,38 @@ def save_user_config(config):
     log.info('Saved user config: %s', path)
 
 
+def save_addin_defaults(config):
+    """Write addin defaults snapshot to data/addin_scan.json.
+
+    This is the admin's template — each add-in's default locked/protected
+    state derived from origin classification. Profile creation reads this
+    to populate protectedAddins and lockedAddins.
+    """
+    from rst_lib import ADDIN_SCAN_PATH
+    addins = config.get('addins', {})
+    defaults = {}
+    for name, info in addins.items():
+        defaults[name] = {
+            'displayName': info.get('displayName', name),
+            'origin':      info.get('origin', ''),
+            'locked':      info.get('locked', False),
+            'protected':   info.get('protected', False),
+            'addinFile':   info.get('addinFile'),
+            'publisher':   info.get('publisher'),
+            'version':     info.get('version'),
+        }
+
+    os.makedirs(os.path.dirname(ADDIN_SCAN_PATH), exist_ok=True)
+    data = {
+        'scanDate': config.get('scanDate', ''),
+        'revitVersion': config.get('revitVersion', ''),
+        'addinCount': len(defaults),
+        'addins': defaults,
+    }
+    _atomic_write(ADDIN_SCAN_PATH, data)
+    log.info('Saved addin defaults: %s (%d add-ins)', ADDIN_SCAN_PATH, len(defaults))
+
+
 def needs_rescan(username, version):
     """Check if a rescan is needed (config missing or username mismatch)."""
     return load_user_config(username, version) is None
