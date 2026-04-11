@@ -210,6 +210,9 @@ class ProfileSelectorAPI:
         disabling = []
         skipped = []
 
+        # Build set of names being disabled so we can suppress related loader entries
+        disabling_names = set()
+
         for name, info in local_addins.items():
             if not info.get('enabled', True):
                 continue  # already disabled, skip
@@ -240,6 +243,14 @@ class ProfileSelectorAPI:
                 skipped.append(entry)
             else:
                 disabling.append(info)
+                disabling_names.add(name.lower().replace(' ', ''))
+
+        # Suppress skipped entries whose loader is already being disabled
+        # (e.g. "NonicaTab FREE" skipped but "NonicaTabFREELoader" is disabling)
+        skipped = [s for s in skipped
+                   if not any(d.startswith(s.get('displayName', s.get('tabName', '')).lower().replace(' ', ''))
+                             and 'loader' in d
+                             for d in disabling_names)]
 
         return {'staying': staying, 'disabling': disabling, 'skipped': skipped}
 

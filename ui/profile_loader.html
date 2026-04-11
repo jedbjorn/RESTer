@@ -1159,16 +1159,17 @@
             : originVal === 'custom' ? 'origin-custom'
             : originVal === 'unknown' ? 'origin-unknown' : '';
 
+          var isNative = originVal === 'native';
           var addinUrl = addin.url || (known ? known.url : '');
-          var urlHtml = addinUrl
+          var urlHtml = !isNative && addinUrl
             ? `<a href="${escHtml(addinUrl)}" target="_blank" style="font-family:'DM Mono',monospace;font-size:9px;color:var(--accent);text-decoration:none;flex-shrink:0" onmouseenter="this.style.textDecoration='underline'" onmouseleave="this.style.textDecoration='none'" title="${escHtml(addinUrl)}">info ↗</a>`
             : '';
 
           return `<div class="addin-row">
             <span class="addin-row-name">${escHtml(tabName)}</span>
-            ${originVal ? `<span class="addin-origin ${originCls}">${originVal}</span>` : ''}
             <span class="addin-file">${fileCol}</span>
             ${urlHtml}
+            ${originVal && !isNative ? `<span class="addin-origin ${originCls}">${originVal}</span>` : ''}
             <span class="addin-status ${statusCls}" title="${statusTitle}">${statusLabel}</span>
           </div>`;
         }).join('')}
@@ -1303,24 +1304,17 @@
     var skippedList = document.getElementById('confirmSkipped');
     var skippedWrap = document.getElementById('confirmSkippedWrap');
 
-    function confirmOriginBadge(info) {
-      var o = info.origin || '';
-      if (!o) return '';
-      var cls = o === 'native' ? 'origin-native' : o === 'third-party' ? 'origin-thirdparty' : 'origin-custom';
-      return ' <span class="addin-origin ' + cls + '">' + o + '</span>';
-    }
-
     stayingList.innerHTML = staying.map(function(info) {
-      return '<div class="confirm-list-item">' + escHtml(info.displayName || info.tabName || 'Unknown') + confirmOriginBadge(info) + '</div>';
+      return '<div class="confirm-list-item">' + escHtml(info.displayName || info.tabName || 'Unknown') + '</div>';
     }).join('') || '<div class="confirm-list-item" style="color:var(--text3)">None</div>';
 
     disablingList.innerHTML = disabling.map(function(info) {
-      return '<div class="confirm-list-item">' + escHtml(info.displayName || info.tabName || 'Unknown') + confirmOriginBadge(info) + '</div>';
+      return '<div class="confirm-list-item">' + escHtml(info.displayName || info.tabName || 'Unknown') + '</div>';
     }).join('') || '<div class="confirm-list-item" style="color:var(--text3)">None</div>';
 
     if (skipped && skipped.length > 0) {
       skippedList.innerHTML = skipped.map(function(info) {
-        return '<div class="confirm-list-item">' + escHtml(info.displayName || info.tabName || 'Unknown') + confirmOriginBadge(info) + '</div>';
+        return '<div class="confirm-list-item">' + escHtml(info.displayName || info.tabName || 'Unknown') + '</div>';
       }).join('');
       skippedWrap.style.display = '';
     } else {
