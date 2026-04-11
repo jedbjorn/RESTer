@@ -1959,7 +1959,7 @@
           : d.origin === 'custom' ? 'origin-custom'
           : d.origin === 'unknown' ? 'origin-unknown' : '';
         return '<tr style="border-bottom:1px solid rgba(255,255,255,0.04)">' +
-          '<td style="padding:5px 6px;color:var(--text1)">' + name + '</td>' +
+          '<td style="padding:5px 6px;color:var(--text1)">' + (d.displayName || name) + '</td>' +
           '<td style="padding:5px 6px"><span class="addin-origin ' + originCls + '">' + (d.origin || '') + '</span></td>' +
           '<td style="text-align:center;padding:5px 6px">' +
             '<label class="rst-toggle">' +
