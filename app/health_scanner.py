@@ -293,10 +293,11 @@ def capture_health_snapshot(revit_version=None, revit_build=None,
         'network': _parse_network(wmi),
         'os':      _get_os(),
         'revit': {
-            'version': revit_version or '',
-            'build':   revit_build or '',
+            'version':  revit_version or '',
+            'build':    revit_build or '',
+            'username': revit_username or '',
+            'model':    _get_model_info(model_name, model_path),
         },
-        'model':   _get_model_info(model_name, model_path),
     }
 
     log.info('Health snapshot captured: %s / %dMB RAM used / %.1fGB disk free',
