@@ -187,6 +187,10 @@ class ProfileSelectorAPI:
         required_list = profile_data.get('requiredAddins', [])
         protected_list = profile_data.get('protectedAddins', [])
 
+        # Load admin protection settings from addin_defaults.json
+        from rst_lib import ADDIN_DEFAULTS_PATH, load_json_safe
+        admin_defaults = load_json_safe(ADDIN_DEFAULTS_PATH, {}).get('addins', {})
+
         # Match required add-ins to local names
         required_results = match_addins(required_list, local_addins)
         required_local = set()
@@ -216,11 +220,13 @@ class ProfileSelectorAPI:
             if profile_tab and (tab_name == profile_tab or name == profile_tab):
                 continue
 
-            if info.get('locked', False):
+            # Check admin protection flags from addin_defaults.json
+            admin_entry = admin_defaults.get(name, {})
+            if admin_entry.get('locked', False) or info.get('locked', False):
                 continue  # system-locked — hidden from all lists
 
             is_required = name in required_local
-            is_protected = name in protected_local
+            is_protected = name in protected_local or admin_entry.get('protected', False)
 
             if is_protected or is_required:
                 staying.append(info)

@@ -95,6 +95,7 @@ def _find_in_registry(name):
     from rst_lib import normalize_addin_name
     name_lower = name.lower()
     name_norm = normalize_addin_name(name)
+    name_compact = name_norm.replace(' ', '') if name_norm else ''
 
     for prog in _cached_programs:
         display = prog.get('DisplayName', '')
@@ -107,7 +108,13 @@ def _find_in_registry(name):
             return prog.get('Publisher') or None
 
         # Normalized match
-        if name_norm and normalize_addin_name(display) == name_norm:
+        display_norm = normalize_addin_name(display)
+        if name_norm and display_norm == name_norm:
+            return prog.get('Publisher') or None
+
+        # Compact match: strip spaces from normalized forms so
+        # "dirootsone" matches "diroots one" (from "DiRoots.One")
+        if name_compact and display_norm and display_norm.replace(' ', '') == name_compact:
             return prog.get('Publisher') or None
 
         # Substring: name in display or display in name

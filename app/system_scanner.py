@@ -200,13 +200,19 @@ def filter_revit_addins(programs, static_lookup):
 
     # normalized name -> tab_name  (strips dots, versions, noise words)
     norm_to_tab = {}
+    compact_to_tab = {}  # spaces stripped for CamelCase vs dot-separated matching
     for tab_name, info in static_lookup.items():
         norm = normalize_addin_name(info.get('displayName', tab_name))
         if norm:
             norm_to_tab[norm] = tab_name
+            compact_to_tab[norm.replace(' ', '')] = tab_name
         norm_key = normalize_addin_name(tab_name)
         if norm_key and norm_key not in norm_to_tab:
             norm_to_tab[norm_key] = tab_name
+        if norm_key:
+            compact = norm_key.replace(' ', '')
+            if compact not in compact_to_tab:
+                compact_to_tab[compact] = tab_name
 
     # Match registry entries against known add-ins
     for prog in programs:
@@ -226,6 +232,12 @@ def filter_revit_addins(programs, static_lookup):
             reg_norm = normalize_addin_name(reg_name)
             if reg_norm and reg_norm in norm_to_tab:
                 matched_tab = norm_to_tab[reg_norm]
+
+        # Strategy 2b: compact match (spaces stripped so "diroots one" matches "dirootsone")
+        if not matched_tab:
+            reg_compact = reg_norm.replace(' ', '') if reg_norm else ''
+            if reg_compact and reg_compact in compact_to_tab:
+                matched_tab = compact_to_tab[reg_compact]
 
         # Strategy 3: registry name contains a known tab key
         if not matched_tab:
