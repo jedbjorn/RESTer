@@ -381,11 +381,18 @@ class TabCreatorAPI:
         ensure_profile_id(data)
 
         if is_active_profile(data.get('id'), data.get('profile')):
-            data = copy.deepcopy(data)
-            data['id'] = None
-            ensure_profile_id(data)
-            log.info('Profile is active in Revit. Assigned new ID for editing: %s', data['id'])
-            return {'_copied': True, '_message': 'Profile currently loaded. Saving will create a new copy.', **data}
+            # Unload the active profile so it can be edited in place
+            try:
+                blank = {
+                    'profile': None, 'profile_id': None, 'profile_file': None,
+                    'loaded_at': None, 'disable_non_required': False, 'blank': True,
+                }
+                with open(ACTIVE_PROFILE_PATH, 'w', encoding='utf-8') as f:
+                    json.dump(blank, f, indent=2)
+                log.info('Unloaded active profile for editing: %s', data.get('profile'))
+            except Exception as e:
+                log.warning('Could not unload profile: %s', e)
+            return {'_unloaded': True, '_message': 'Profile was loaded — it has been unloaded for editing. Reload after saving.', **data}
 
         log.info('Found profile: %s [id=%s]', data.get('profile'), data.get('id'))
         return data

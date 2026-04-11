@@ -3472,8 +3472,8 @@
     if (window.pywebview && window.pywebview.api && window.pywebview.api.load_profile_into_editor) {
       window.pywebview.api.load_profile_into_editor(name, id).then(profile => {
         if (!profile) return;
-        if (profile._copied) {
-          showToast('Copy Created', profile._message || 'Profile currently loaded. A copy has been made for editing.', 5000);
+        if (profile._unloaded) {
+          showToast('Profile Unloaded', profile._message || 'Profile was unloaded for editing. Reload after saving.', 5000);
         }
         applyProfileToEditor(profile);
       }).catch(err => {
