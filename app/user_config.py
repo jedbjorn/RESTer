@@ -227,7 +227,7 @@ def build_user_config(username, version, loaded_addins, all_tabs, addin_lookup,
         log.debug('RST-managed tabs excluded from scan: %s', rst_tabs)
 
     # Step 1: list user + machine addins directories
-    dir_files, user_addins_dir = _list_addins_dirs(version)
+    dir_files, _ = _list_addins_dirs(version)
 
     # Parse AddInIds and assembly-to-addin mappings from .addin XML files
     search_dirs = get_addins_dirs(version)
@@ -261,7 +261,6 @@ def build_user_config(username, version, loaded_addins, all_tabs, addin_lookup,
 
         lookup_entry = addin_lookup.get(tab_name, {})
         display_name = lookup_entry.get('displayName', tab_name)
-        url = lookup_entry.get('url', '')
         expected_file = lookup_entry.get('file')
 
         # Get assembly path from session data
@@ -316,7 +315,6 @@ def build_user_config(username, version, loaded_addins, all_tabs, addin_lookup,
 
         lookup_entry = addin_lookup.get(panel_name, {})
         display_name = lookup_entry.get('displayName', panel_name)
-        url = lookup_entry.get('url', '')
         expected_file = lookup_entry.get('file')
         assembly_path = panel_info.get('assembly')
 
@@ -475,7 +473,6 @@ def append_new_addins(config, loaded_addins, all_tabs, addin_lookup, addin_panel
 
         lookup_entry = addin_lookup.get(tab_name, {})
         display_name = lookup_entry.get('displayName', tab_name)
-        url = lookup_entry.get('url', '')
         expected_file = lookup_entry.get('file')
 
         loaded_entry = loaded_by_name.get(tab_name.lower(), {})
@@ -527,7 +524,6 @@ def append_new_addins(config, loaded_addins, all_tabs, addin_lookup, addin_panel
 
         lookup_entry = addin_lookup.get(panel_name, {})
         display_name = lookup_entry.get('displayName', panel_name)
-        url = lookup_entry.get('url', '')
         expected_file = lookup_entry.get('file')
         assembly_path = panel_info.get('assembly')
 

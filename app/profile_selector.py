@@ -36,11 +36,7 @@ def _get_required_tab_names(profile_data):
 def _write_blank_profile():
     """Write a blank active profile so startup.py builds an empty RST tab."""
     blank = {
-        'profile': None,
-        'profile_id': None,
-        'profile_file': None,
-        'loaded_at': datetime.datetime.now().isoformat(),
-        'disable_non_required': False,
+        'profile': 'BlankRST',
         'blank': True,
     }
     with open(ACTIVE_PROFILE_PATH, 'w', encoding='utf-8') as f:
@@ -514,6 +510,7 @@ class ProfileSelectorAPI:
             'profile': profile_data.get('profile', profile_name),
             'profile_id': profile_data.get('id'),
             'profile_file': profile_filename,
+            'tab': profile_data.get('tab', ''),
             'loaded_at': datetime.datetime.now().isoformat(),
             'hidden_tabs': hidden_tabs or [],
             'disable_non_required': bool(disable_non_required),

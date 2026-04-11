@@ -2727,6 +2727,7 @@
     el.classList.add('current');
     document.getElementById('profileNameDisplay').textContent = name;
     state.currentProfile = name;
+    state.currentProfileId = null;
     closeProfileMenu();
     checkExportReady();
   }
@@ -2860,10 +2861,7 @@
     if (window.pywebview && window.pywebview.api && window.pywebview.api.save_export) {
       window.pywebview.api.save_export(JSON.stringify(config, null, 2)).then(result => {
         if (result && result.ok) {
-          if (result.was_active) {
-            showToast('Profile saved', 'Reload in Profile Selector for changes to take effect in Revit.');
-          }
-          showExportOverlay(state.currentProfile, result.path || '', result.desktop_path || '');
+          showExportOverlay(state.currentProfile, result.path || '', result.desktop_path || '', result.was_active);
         } else if (result && result.error) {
           showToast('Export failed', result.error);
         }
@@ -2878,7 +2876,7 @@
   }
 
   // ── EXPORT OVERLAY ─────────────────────────────────────────────────────────
-  function showExportOverlay(profileName, installPath, desktopPath) {
+  function showExportOverlay(profileName, installPath, desktopPath, wasActive) {
     const overlay = document.getElementById('exportOverlay');
     const title   = document.getElementById('exportTitle');
     const paths   = document.getElementById('exportPaths');
@@ -2891,6 +2889,9 @@
     if (desktopPath) {
       pathsHtml += '<div class="export-path-label">Desktop</div>' +
                    '<div class="export-path-value">' + escHtml(desktopPath) + '</div>';
+    }
+    if (wasActive) {
+      pathsHtml += '<div class="export-path-label" style="margin-top:8px;color:var(--accent)">Reload in Profile Selector for changes to take effect in Revit.</div>';
     }
     paths.innerHTML = pathsHtml;
     overlay.classList.add('visible');

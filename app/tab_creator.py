@@ -6,7 +6,6 @@ import webview
 import os
 import sys
 import json
-import copy
 import shutil
 import subprocess
 
@@ -17,8 +16,8 @@ from logger import get_logger
 log = get_logger('tab_creator')
 
 from rst_lib import (
-    EXT_ROOT, PROFILES_DIR, ICONS_DIR, ICONPACK_DIR, ACTIVE_PROFILE_PATH, UI_DIR,
-    safe_filename, resolve_profile, get_all_profile_names,
+    EXT_ROOT, PROFILES_DIR, ICONS_DIR, ICONPACK_DIR, UI_DIR,
+    safe_filename, resolve_profile,
     is_active_profile, ensure_profile_id,
 )
 from addin_scanner import (
@@ -90,7 +89,6 @@ class TabCreatorAPI:
         """Save admin-edited protection settings back to data/addin_defaults.json.
         Only updates locked/protected fields — preserves all other default data."""
         from rst_lib import ADDIN_DEFAULTS_PATH, load_json_safe
-        import json
         data = load_json_safe(ADDIN_DEFAULTS_PATH, {})
         existing = data.get('addins', {})
 
@@ -106,7 +104,6 @@ class TabCreatorAPI:
             tmp = ADDIN_DEFAULTS_PATH + '.tmp'
             with open(tmp, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
-            import os
             os.replace(tmp, ADDIN_DEFAULTS_PATH)
             log.info('Saved admin protection settings to %s', ADDIN_DEFAULTS_PATH)
             return {'ok': True}

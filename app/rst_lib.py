@@ -348,16 +348,6 @@ def get_active_profile():
     }
 
 
-def get_active_profile_name():
-    active = get_active_profile()
-    return active['name'] if active else None
-
-
-def get_active_profile_id():
-    active = get_active_profile()
-    return active['id'] if active else None
-
-
 def is_active_profile(profile_id=None, profile_name=None):
     """Check if a profile (by ID or name) is the currently active one."""
     active = get_active_profile()
