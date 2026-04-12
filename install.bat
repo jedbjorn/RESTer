@@ -104,7 +104,7 @@ rem ---------- Step 3: Verify pywebview import ----------
 :step3
 echo.
 echo [3/3] Verifying pywebview import...
-py -3.12 -c "import webview; print('pywebview', webview.__version__)" 2>nul
+py -3.12 -c "import webview; print('pywebview', webview.__version__)"
 if errorlevel 1 goto :step3_fail
 set "STEP3=OK"
 goto :pyrevit_check
