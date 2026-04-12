@@ -385,6 +385,7 @@ Remove the RST entry from **pyRevit → Extensions → Manage** (or delete the R
 - **Hidden tabs break tools** — tools from hidden tabs may not execute. RSTify protects source tabs from being hidden, but manually hiding a tab with pyRevit's MinifyUI (if restored) can break tools
 - **MinifyUI deleted** — RST deletes the MinifyUI smartbutton folder on profile load. Reinstall pyRevit to restore MinifyUI after removing RST
 - **Add-in disabling** — user-scope only. Machine-scope (ProgramData) add-ins are tracked but never disabled. Protected and Autodesk add-ins always exempt
+- **Memory growth on reload** — every pyRevit Reload / Update leaves memory behind in the Revit process (~100–150 MB per reload, measured with RST removed). This is a pyRevit architectural quirk: IronPython types created during extension load can't be unloaded by the CLR, so each reload stacks a new generation on top of the previous one. RST tightens what it can (icon caching, event-handler teardown, brush de-dup) but the base cost belongs to pyRevit. If memory climbs during heavy profile switching, relaunch Revit — a fresh process starts clean
 
 ---
 
