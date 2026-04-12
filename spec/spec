@@ -1,0 +1,437 @@
+# RESTer — Revit Environment Standardization Tool
+**Spec v0.8 · Pre-Development · Open Source · April 2026**
+
+---
+
+## 00 · Overview
+
+An open source Revit environment standardization system for BIM managers and admins. Define curated toolset profiles, export them as profile files, and distribute them to users — resulting in a consistent, focused Revit environment across the company.
+
+Free and open source. No commercial strings attached.
+
+| Field | Value |
+|---|---|
+| Tool Name | RESTer |
+| Target User | BIM managers, Revit admins, firm IT leads |
+| Distribution | Open source — GitHub (pyRevit extension) |
+| Platform | Windows — Revit 2024+ |
+| Primary Language | Python — pyRevit extension |
+| Profile Format | JSON — no external dependencies |
+| Status | Pre-development — moving to UI design |
+| Version | 0.8 — Planning spec |
+
+### Three Surfaces
+
+**Profile Manager — inside Revit**
+Admin-facing pyRevit tool. Admins record tools directly from the Revit ribbon, assemble them into a tab layout, configure visibility and add-in rules, and export a profile file for distribution. Requires Revit to be running.
+
+**Profile Selector — outside Revit**
+User-facing standalone app. Users add profiles by pointing to a profile file shared by the admin — RESTer copies it to the install location. Users select which profile to load; the tool handles add-in activation and records the active profile selection. Run before opening Revit.
+
+**Runtime Extension — Add-ins tab, always present**
+The pyRevit extension runs silently at every Revit launch: reads the active profile file and builds the custom tab. Two buttons live on the Add-ins tab in a fixed RESTer panel — one shows the loaded profile name and links to the README, one opens the Profile Manager. The profile tab itself is purely tool content — no RESTer chrome.
+
+> **Key Architecture Principle:** The runtime extension is identical across all profiles. All profile-specific configuration lives in the profile file. At runtime, each button invokes its command directly via `PostCommand(RevitCommandId)` — no shortcut file is read or written, no key combinations are assigned. The extension is a profile reader, a tab builder, and a command invoker.
+
+---
+
+## 01 · Problem Statement
+
+Most Revit environments in practice are cluttered. Add-ins accumulate over time, ribbon tabs multiply, and users spend time navigating tools irrelevant to their current workflow. There is no native Revit mechanism for an admin to define and enforce a standardized, role-appropriate environment.
+
+Existing workarounds — manual shortcut exports, group policy scripts, ad-hoc add-in management — are fragile, non-repeatable, and require significant technical knowledge to maintain.
+
+### The Core Need
+
+- **Standardization** — consistent environment across all users on a profile
+- **Role focus** — only relevant tools visible for a given workflow
+- **Low friction** — users should not need to configure anything themselves
+- **Admin control** — one person defines and distributes the environment
+- **Resilience** — should survive Revit updates and user tinkering gracefully
+
+> **Design Philosophy:** The tool is for **trimming excess, not finding gold**. Users already know what they want. The goal is removing noise from their environment, not discovering new workflows.
+
+---
+
+## 02 · Solution Concept
+
+RESTer has a hard boundary: admin work happens inside Revit, user profile selection happens outside Revit. Inside Revit at runtime, the tool surfaces two fixed buttons on the Add-ins tab and nothing else.
+
+### Entry Points
+
+**Add-ins tab — RESTer panel (always present):** two buttons, always on the Add-ins tab regardless of what profile is loaded. First button shows the name of the currently loaded profile and links to the README, which explains how to use the Profile Selector. Second button opens the Profile Manager (admin tool).
+
+**Profile Selector (outside Revit):** standalone app the user runs before opening Revit. Manages the user's library of added profiles and records the active profile selection when the user loads one.
+
+The profile tab built from a loaded profile is purely tool content. No RESTer buttons or chrome appear on it.
+
+**Profile Manager (inside Revit)**
+Opened via the Profile Manager button on the Add-ins tab. Admin creates and edits profiles — records tools from the ribbon, assembles the tab layout, configures rules, and exports a profile file to share with users.
+
+**Profile Selector (outside Revit)**
+User adds a profile by navigating to a profile file shared by the admin. RESTer copies it to the install location. User selects which profile to activate — the tool manages `.addin.inactive` renames and records the active profile selection. User then opens Revit.
+
+### Admin Flow
+
+1. **Open the Tab Creator** — Admin clicks **Profile Manager** from the Revit ribbon. The Tab Creator opens in-process. The profile switcher in the header lists all existing profiles — admin selects one to edit, or chooses **+ New** to start a blank slate. There is no separate Profile Manager window — all profile management happens inside the Tab Creator.
+
+2. **Record tools** — Admin clicks **Record**. The extension subscribes to `ComponentManager.ItemExecuted` via `adwindows.dll`. Admin clicks tools in the Revit ribbon — each click captures the `CommandId`, display name, and icon and adds it to the Available Tools list. Tools can only be recorded once. Done ends recording.
+
+3. **Create panels and stacks** — Admin creates panels using the + control in the Panels section of the browser. Stacks are created using the + control in the Stacks section — each new stack must be assigned to an existing panel. Stacks belong to exactly one panel and cannot be shared or reused. Panels must exist before stacks can be assigned to them.
+
+4. **Add tools to panels and stacks** — Admin selects a panel or stack in the browser to open the editor. **Add Tool** shows available unplaced tools — admin picks from the list. Each tool can only be placed once. If no panel or stack exists when Add Tool is clicked, a nudge prompts the admin to create one first.
+
+5. **Build the tab in preview** — Admin drags panels from the browser into the Tab Preview to place them. Panels can be reordered by dragging within the preview. Selecting a panel or stack in the preview opens the editor — everything remains editable as the preview builds.
+
+6. **Declare required add-ins, mark tabs to hide** — Admin types required add-in names into the chip field in the header — autocompleted from add-ins active in the running Revit session. Each chip represents one declared dependency. To hide a tool's source add-in tab from profile users, admin clicks the hide toggle (–/✕) on that tool's row in the browser sidebar. The same toggle applies to stacks and panels.
+
+7. **Export and share** — Admin clicks **Export Config** — enabled only when both the profile name and tab name fields are filled. Profile file written as `{profile-name}_{date}.json` to the admin's chosen location. Shared with users via any method — users add it in the Profile Selector.
+
+### User Flow — Profile Selector
+
+1. **Add a profile (first time)** — User clicks **Add Profile** and navigates to the profile file shared by the admin. RESTer copies the file to its install location and adds it to the user's profile list. This only needs to happen once per profile.
+
+2. **Select profile to load** — User picks from their list of added profiles and clicks Load. Revit must be closed — the Profile Selector enforces this by disabling the Load button when any Revit.exe process is detected, re-enabling it automatically once the process is gone.
+
+3. **Record active profile selection** — The active profile selection is recorded. User opens Revit — the runtime extension reads the active profile file and builds the tab automatically.
+
+> **Remove Profile:** User can remove any added profile from their list at any time. This deletes the copied profile file from the RESTer install location. It does not affect the original file shared by the admin. If the removed profile was the active one, RESTer clears the active profile state. On the next Revit launch, the runtime extension detects no active profile and prompts the user to open the Profile Selector and load one. This same prompt handles first run — no special onboarding flow required.
+
+> **Every Subsequent Launch:** On every Revit load, the runtime extension reads the active profile file and rebuilds the tab. No user action required unless switching profiles.
+
+---
+
+## 03 · Command Execution
+
+Buttons in the custom tab invoke commands directly using `UIApplication.PostCommand(RevitCommandId)`. No shortcut file is read or written at any point — not during admin setup, not at user runtime, not on subsequent loads.
+
+### Admin Phase — Recording
+
+The admin captures tools via `ComponentManager.ItemExecuted` from `adwindows.dll` (see Section 02). Each click registers the tool's `CommandId`, display name, and icon. At capture time, the extension validates that `PostCommand` is available for that `CommandId` — if not, the tool is rejected with a clear message. The admin's environment is not modified at any point.
+
+> **Architecture Note:** The previous design used keyboard shortcuts as an indirect execution mechanism — admin assigned prefixed shortcuts to mark tools, and runtime buttons fired hidden key combinations via Win32. This is fully replaced: commands are invoked directly, shortcuts are not involved, and the admin's shortcut file is never touched.
+
+### User Runtime — Direct Invocation
+
+When a user clicks a button in the profile tab, the extension calls `PostCommand` with the stored `CommandId`. Revit executes the command as if the user had clicked it in the native ribbon. No shortcut plumbing, no Win32 focus assertions, no restart required.
+
+> **⚠ PostCommand Limitations:** `PostCommand` queues the command for execution — it does not execute synchronously. Commands that require a specific active view or document context will fail silently or surface Revit's own error messaging if the context is wrong. This is the same behaviour a user would get clicking the native button in the wrong context. No special handling required beyond graceful failure messaging.
+
+---
+
+## 04 · Admin / User Tiers
+
+The system operates across two completely separate phases. The admin defines what the environment contains. The runtime figures out how to deliver it on each individual user machine. These phases share a profile JSON file and nothing else.
+
+**Admin Phase**
+Profile definition inside Revit, via the Profile Manager. Admin opens the Profile Manager from the ribbon, enters recording mode, and clicks tools — each click registers the CommandId, display name, and icon. Captured tools are assembled into a panel and stack layout with named panels and colors. Visibility and add-in rules configured. Profile file exported to the admin's chosen location for sharing.
+
+↓ *profile file shared with users* ↓
+
+**User Runtime**
+Fully automatic. Zero configuration. On every Revit launch: extension reads the active profile file, verifies required add-ins are present, builds the custom tab, and wires each button to invoke its command via `PostCommand`. No shortcut file interaction. Add-ins are already in the correct state — they were managed at switch time before Revit launched.
+
+### Runtime Load Logic
+
+1. **Read active profile file** — Extension reads the active profile file — tool list with CommandIds, panel layout, add-in tab hide rules, required add-ins.
+2. **Check dependencies** — Confirm all required add-ins are present. Any missing — surface a clear notification. Installation is the user's responsibility; RESTer does not install.
+3. **Build custom tab** — Construct tab, panels, and stacks from the profile definition. Apply add-in tab hide rules. Wire each tool button to its `PostCommand` handler.
+4. **Tab is live** — The profile tab is immediately available. No restart required — the tab builds fresh on every Revit launch from the active profile file.
+
+> **User Experience Principle:** The tool is completely invisible to users inside Revit. They get a tab with buttons that work. No shortcut plumbing, no configuration, no manual steps. Commands fire directly — exactly as if the user had clicked the native ribbon button.
+
+---
+
+## 05 · Add-in Detection
+
+The system detects installed add-ins in two contexts: in the Tab Creator header to autocomplete the required add-ins chip field, and in the Profile Selector to surface visual flags against declared dependencies.
+
+### Detection Method
+
+- Scan both **per-user** and **per-machine** `.addin` manifest file locations on disk
+- Detect add-in name, version (where populated), and active/inactive status
+- Does **not** require Revit to be running — file scan only
+- Profile Selector compares declared required add-ins from the profile JSON against detected add-ins and shows a visual flag per missing entry. No detection occurs inside Revit at runtime.
+
+### Recording Requires Revit Open
+
+Tool capture via recording requires Revit to be open — the `ComponentManager.ItemExecuted` event from `adwindows.dll` is only available in an active Revit session. Add-in detection for dependency management works with Revit closed or open.
+
+**Revit Closed:** Can detect installed add-ins via .addin files for dependency management. Cannot capture tools — recording requires an active Revit session.
+
+**Revit Open:** Full tool capture via recording — any ribbon button can be registered. Add-in detection also available. Required for profile creation.
+
+> **Scope Decision:** This tool only supports add-ins that register their commands correctly as ribbon items — the standard for any modern, well-built add-in. If a command doesn't produce a valid, `PostCommand`-compatible `CommandId` when clicked during recording, it will be rejected at capture time with a clear message. Supporting non-registering add-ins is explicitly out of scope — that is an add-in quality problem, not ours to solve.
+
+---
+
+## 06 · Profile Management
+
+Profiles define a named, curated Revit environment for a specific role or workflow. Examples: Design, Documentation, Site, Coordination.
+
+### Profile Contents
+
+- **Name** — display name for the profile. Used in the Profile Selector UI and as the filename slug on export.
+- **Min. Revit version** — automatically written at export time from the active Revit session. Always present. A profile file missing this field is treated as corrupt and rejected at the point of adding it in the Profile Selector. Not editable by the admin — it reflects the Revit version the profile was built in.
+- **Tool list with command IDs** — curated set of tools identified by Revit CommandId, with panel and stack groupings, display names, icons captured at record time, and optional tool color (hex).
+- **Required add-ins** — admin-declared list of add-in names the profile depends on, entered as chips in the Tab Creator header. Stored in the profile JSON. The Profile Selector reads this list and shows a visual flag against each declared add-in that is not detected on the user's machine. No programmatic validation occurs inside Revit — this is informational metadata only.
+- **Add-in tab hide rules** — per-item hide toggles set in the browser sidebar. When a tool, stack, or panel is marked hidden, its source add-in's native Revit tab is suppressed for users on this profile at runtime. Optional; default is all add-in tabs visible.
+
+> **What the profile does NOT contain:** No shortcut assignments. Zero. Commands are invoked directly via `PostCommand` at runtime — no key combinations are generated, stored, or written to any file. The profile is a JSON file, fully portable and human-readable. It works identically on any user machine running a compatible Revit version.
+
+### Distribution Model
+
+When the admin completes a profile, a single JSON profile file named `{profile-name}_{date}.json` is exported to a location of the admin's choosing. The admin shares this file with users however they see fit — email, OneDrive, network share, etc.
+
+Users add the profile file via the Profile Selector. RESTer copies it to the install location on their machine and manages it from there. The original file is not referenced again — updates require the admin to re-export and reshare, and the user to re-add.
+
+> **Design Intent:** No shared folder to maintain. No infrastructure. A single file is the delivery mechanism. Profiles are expected to be **stable** — the copy-on-add model eliminates path dependency and network share management entirely.
+
+---
+
+## 07 · Tab Visibility
+
+Each tool, stack, and panel in the browser sidebar has a hide toggle (–/✕). When the admin activates this toggle for an item, the native Revit tab belonging to that item's source add-in is suppressed for users loading this profile. This is the only mechanism for controlling add-in tab visibility — there is no separate list or checklist.
+
+### Mechanism
+
+- **Default** — all add-in tabs visible. Admin explicitly opts in to hiding per item.
+- **Hide toggle** — inline –/✕ control on every row in the Available Tools, Stacks, and Panels sections of the browser sidebar. Active state (✕) is visually distinct — amber styling. Inactive state (–) is neutral.
+- **Effect** — at runtime, the extension reads which items are marked hidden and suppresses the corresponding add-in tabs via pyRevit. Only add-in tabs are in scope — native Revit tabs (Architecture, Structure, etc.) are never hidden.
+- **Stored in profile** — hide state per item is written to the profile JSON on export and applied consistently across all users loading that profile.
+
+> **Scope:** Tab autohide is confirmed possible via pyRevit — existing source available as reference implementation. Add-in activate/deactivate via `.addin.inactive` renaming is out of scope for this version. Only tab visibility is managed at this time.
+
+---
+
+## 08 · Custom Tab Builder
+
+The runtime extension builds a custom Revit ribbon tab from the profile definition using the pyRevit ribbon API. The tab contains panels grouping curated tool buttons. Each button invokes its command directly via `PostCommand(RevitCommandId)` when clicked.
+
+### Tab Structure
+
+- **Tab** — one tab per profile, named by the admin. The tab name is the ribbon tab label users will see in Revit.
+- **Panels** — maximum 4 panels per tab, each with a custom name and background color. Color is set via hex code entry — admin types a hex value and can save it as a swatch for reuse. No color picker widget. Confirmed supported via pyRevit ribbon API.
+- **Tools** — each tool occupies one slot in a panel as a full-size button. Each tool can only appear once across the entire profile. Tools support an optional accent color set via hex code, applied to the button icon or label treatment in the ribbon.
+- **Stacks** — a stack is a compact grouping of up to 3 tools displayed as a single stacked button unit in the ribbon. Stacks are created inside a panel, belong to that panel only, and cannot be shared or reused. A stack occupies one slot in its parent panel.
+- **Capacity** — 4 panels per tab. The number of tools and stacks per panel is not hard-capped in the spec — the practical limit is what displays cleanly in a Revit ribbon panel. This should be validated during the POC and a recommended maximum documented. A stack counts as one item in its parent panel and holds up to 3 tools.
+- **Add-in tab hide rules** — applied at load time per the profile file. Set via the hide toggle on sidebar items in the Tab Creator. Optional; default is all tabs visible.
+
+> **Design Constraint:** One tab per profile. The profile tab is purely tool content — no RESTer chrome. RESTer's own buttons live on the Add-ins tab and are never mixed into the profile tab layout.
+
+### Tab Preview
+
+The lower region of the Tab Creator shows a live preview of the tab as it will appear in Revit. Panels are dragged from the browser into the preview to place them. Panels can be reordered by dragging left and right within the preview. Selecting any panel or stack in the preview opens the editor for that object — the admin can continue editing without leaving the preview context.
+
+### Button Behaviour
+
+1. **User clicks button** — Button click handler fires in the extension.
+2. **PostCommand invocation** — Extension calls `UIApplication.PostCommand(RevitCommandId)` for this button's stored CommandId. Revit queues the command for execution.
+3. **Handle failure gracefully** — If the command cannot execute in the current context (wrong view type, dialog open, etc.), surface a clear, non-alarming message rather than failing silently.
+
+> **⚠ API Fragility:** The pyRevit ribbon API is version-sensitive. Changes between Revit releases may break tab or panel construction. Initial support scoped to Revit 2024+. Community to submit version-specific fixes as needed.
+
+---
+
+## 09 · Dependency Notification
+
+Required add-in information travels in the profile JSON as admin-declared metadata. It surfaces in two places — the Profile Selector and the runtime failure toast — with no programmatic validation in either. RESTer does not inspect running processes, block profile loading, or install anything.
+
+### Profile Selector — Visual Flags
+
+When the user adds a profile, the Profile Selector reads the `requiredAddins` field from the profile JSON and compares it against add-ins detected on the user's machine. Each declared add-in that is not detected is flagged visually on the profile card — name shown, flag colour indicating missing. Detection is a passive file scan of `.addin` manifest locations; it does not require Revit to be running.
+
+- Visual flag only — no block on loading, no prompt to install
+- Flags update automatically if the user installs a missing add-in and re-opens the Profile Selector
+- Add-ins the admin declared that are present show no flag — completely silent
+- No per-tool mapping — required add-ins are profile-level metadata only
+
+### Runtime — Failure Toast
+
+RESTer performs no proactive add-in checking inside Revit. If a tool invocation fails at click time, a non-blocking toast surfaces stating that the profile may be incompatible with the running Revit version or the required add-in version may not be installed. The toast is generic — it does not name a specific add-in or command. It auto-dismisses.
+
+- **No active profile** — if no profile has been loaded, the runtime extension does not attempt to build a tab. A clear, non-blocking prompt directs the user to the Profile Selector.
+- **Tab builds normally** — no launch-time add-in checking. Silent on success.
+- **Tool invocation fails** — generic failure toast. No specific add-in named. Auto-dismisses.
+
+> **Scope Decision:** Programmatic add-in validation inside Revit introduces complexity with no proportionate benefit — the AEC community knows how to install add-ins. A visual flag in the Profile Selector at profile-add time is the right moment to surface missing dependencies, when the user can still act on it before opening Revit.
+
+---
+
+## 10 · UI Reference
+
+A catalogue of every UI element in the tool, organized by context. Intended for design and implementation review. Elements are described by function — visual treatment is left to the design phase.
+
+### Add-ins Tab — RESTer Panel
+
+Always present in Revit, regardless of what profile is loaded. Two buttons, side by side in a fixed RESTer panel.
+
+**Profile Indicator** — Shows the name of the currently loaded profile. Links to the README, which explains the Profile Selector. Primary touchpoint for end users — they can see what profile they're on and learn how to change it.
+
+**Profile Manager** — Opens the Profile Manager window. Admin tool. Accessible to any user in the UI — if a non-admin opens it, the empty state makes clear it is for profile authors.
+
+### Profile Manager Window (inside Revit)
+
+There is no separate Profile Manager window. The Tab Creator is the single surface for all profile management. It opens directly when the admin clicks the Profile Manager button on the Add-ins tab.
+
+### Tab Creator Window
+
+Opens when the admin clicks the Profile Manager button on the Add-ins tab. Three regions: a browser sidebar on the left, a panel/stack editor in the centre, and a tab preview at the bottom. All three stay live simultaneously — edits made in any region are immediately reflected in the others.
+
+#### Header
+
+- **Profile switcher** — dropdown listing all locally saved profiles by name. Selecting a profile loads it for editing. A **+ New** entry at the bottom of the dropdown creates a blank profile. A pencil (rename) button beside the switcher allows renaming the current profile inline. This is the complete profile management surface — create, switch, and rename all live here.
+- **Delete profile** — accessible via the profile switcher context. Confirmation prompt before deletion. If the last profile is deleted, the creator returns to a blank state.
+- **Required add-ins chip field** — text input with autocomplete sourced from add-ins active in the running Revit session. Each confirmed entry becomes a chip. Chips can be removed individually. All declared add-ins are treated as required — no per-chip toggle. The full chip list is written to the profile JSON on export and read by the Profile Selector to surface missing dependency flags.
+- **Tab name field** — text input. Sets the ribbon tab label users will see in Revit. Required before export.
+- **Revit version indicator** — read-only status display. Shows the Revit version detected from the active session. Written to the profile JSON as `min_version` on export. Not editable.
+- **Export Config button** — disabled and visually greyed until both the profile name and tab name fields are non-empty. Clicking it validates the profile and writes `{profile-name}_{date}.json` to the admin's chosen location.
+
+#### Browser Sidebar
+
+Three sections in a fixed left column: Available Tools, Stacks, Panels. This is the source of truth for the entire profile — every object in the profile exists here first. Every row in all three sections has a hide toggle.
+
+- **Available Tools** — list of all tools captured via recording. Each entry shows the resolved tool name and icon. A checkmark indicates the tool has been placed in a panel or stack. Unplaced tools show no checkmark. The **Record** button sits inline in the section header — enters recording mode when clicked.
+- **Hide toggle (–/✕)** — present on every row across all three sidebar sections. Inactive state (–) is neutral. Active state (✕) uses amber styling to indicate the item is hidden. When active, the source add-in's native Revit tab is suppressed for profile users at runtime. Toggling does not affect tool placement or panel/stack membership — it is purely a tab visibility setting.
+- **Stacks** — list of all stacks created for this profile, with a + control to add a new stack. The + is disabled until at least one panel exists. Each stack entry shows its name, parent panel indicator, and tool count. A checkmark on a stack indicates its parent panel has been placed in the Tab Preview.
+- **Panels** — list of all panels created for this profile, with a + control to add a new panel. Each panel entry shows its color dot and name. A checkmark indicates the panel has been dragged into the Tab Preview.
+
+#### Empty State
+
+When a new Tab Creator opens, all three browser sections are empty and the preview is empty. The only available actions are Record Tool and the + control on the Panels section. The Stacks + control is disabled until a panel exists. The editor centre region shows a prompt directing the admin to start by recording tools or creating a panel. Export Config is not visible.
+
+- **No tools recorded yet** — Tools list shows an empty state with a prompt to use Record Tool.
+- **No stacks created yet** — Stacks list shows an empty state with a note that a panel must exist first. The + control is disabled.
+- **No panels created yet** — Panels list shows an empty state with a prompt to create a panel using +.
+- **Nothing in preview** — Tab Preview is empty. Export Config button is visible but disabled.
+
+#### Tool Capture
+
+- **Record Tool button** — enters recording mode: subscribes to `ComponentManager.ItemExecuted` via `adwindows.dll` and shows the recording indicator.
+- **Recording indicator** — inline status element. Shows "Recording — click any tool in Revit." Persists until Done or Cancel is clicked. Non-modal — admin can interact with Revit freely.
+- **Done button** — ends recording, unsubscribes from the event, returns focus to the Tab Creator. Only visible during active recording.
+- **Cancel button** — ends recording without committing any tools captured in the current session. Only visible during active recording.
+- **Capture success feedback** — brief inline notification each time a tool is successfully added. Shows the resolved tool name. Auto-dismisses.
+- **Capture failure feedback** — inline notification when a clicked tool cannot be validated for `PostCommand` invocation. Explains briefly why. Auto-dismisses. Does not interrupt recording mode.
+
+#### Panel / Stack Editor
+
+Opens in the centre region when a panel or stack is selected — either from the browser sidebar or from the Tab Preview. The editor is context-aware: its available actions and fields depend on whether a panel or stack is selected. When nothing is selected, the centre region shows a prompt to select a panel or stack from the browser, or to create one first.
+
+- **Add Tool button** — always present in the editor header when a panel or stack is selected. Opens a picker showing only unplaced tools. If no panel or stack has been created yet and the admin somehow triggers Add Tool, the nudge reads: "Create a panel or stack first." If a panel or stack is selected, the chosen tool is added to it immediately.
+- **Panel name field** — shown when a panel is selected. Sets the panel label shown in the Revit ribbon.
+- **Panel color field** — shown when a panel is selected. Admin types a hex value into the inline hex field and applies it. A row of saved swatches is shown for quick reuse — swatches are populated by saving hex values, not preset. No color picker widget.
+- **Stack name field** — stacks do not have a visible label in the Revit ribbon. A stack name is shown in the Tab Creator for internal admin reference only — it helps the admin keep stacks straight while building the profile. Not surfaced to users at any point.
+- **Tool list** — shows all tools currently placed in the selected panel or stack, in order. Supports drag-to-reorder within the list.
+- **Tool color field** — per-tool, optional. Hex code input. Admin enters a hex value to apply an accent color to the tool's button in the Revit ribbon. Confirmed supported via Revit API. Defaults to no color if left blank.
+- **Remove tool action** — per-tool in the list. Removes the tool from the panel or stack and returns it to the Tools section. Its checkmark clears.
+- **Remove panel / stack action** — removes the selected object entirely. All its tools return to the Tools section. If the panel was in the preview, it is also removed from the preview and its checkmark clears. Confirmation prompt if the panel or stack contains tools.
+
+#### Tab Preview
+
+Persistent region at the bottom of the Tab Creator. Shows the tab as it will appear in Revit. Empty until the admin drags a panel in. Updates live as the admin edits panels and stacks.
+
+- **Panel drop target** — admin drags a panel from the Panels browser into the preview to place it. Placing a panel sets its checkmark in the browser. Maximum 4 panels in the preview — the drop target is disabled once the limit is reached.
+- **Panel reordering** — panels in the preview are draggable left and right to set their display order in the Revit ribbon.
+- **Panel / stack selection** — clicking any panel or stack in the preview opens the editor for that object. The browser highlights the corresponding entry.
+- **Remove from preview** — each panel in the preview has a remove control (distinct from the delete action in the editor). Removing from preview returns the panel to unplaced state — its checkmark clears, its tools and stacks remain intact and can be placed again. The panel still exists in the browser.
+- **Export Config button** — always visible in the tab preview bar. Disabled and greyed until both the profile name and tab name fields are non-empty. Clicking it validates the profile and writes the profile file as `{profile-name}_{date}.json` to the admin's chosen location. This is the completion action for the Tab Creator.
+
+#### Close
+
+- **Cancel / Close button** — exits the Tab Creator and returns to the Profile Manager. Confirmation prompt if unsaved changes exist.
+
+### Profile Selector (outside Revit)
+
+Standalone app. User-facing. Manages the user's local library of added profiles and handles all profile switching before Revit launches.
+
+- **Revit version dropdown** — shown at the top of the app. Populated automatically from local Revit installs detected on the machine. User selects which Revit install they are configuring. This is the primary context-setter — it determines which `.addin` manifest paths are targeted and filters profile compatibility display. Version should be selected before interacting with profiles.
+- **Profile list** — shows all profiles the user has added. Each entry shows the profile name, declared min. Revit version, and required add-in flags. Empty state prompts the user to add a profile. Profiles whose `min_version` is newer than the selected Revit install are shown greyed out with a version mismatch indicator — they remain selectable at the user's own risk.
+- **Required add-in flags** — each profile card shows a flag for every add-in declared in the profile's `requiredAddins` field that is not detected on the user's machine. Detection is a passive scan of `.addin` manifest file locations — no Revit process required. Present add-ins are silent. Missing add-ins are flagged by name. No block on loading — informational only.
+- **Add Profile button** — opens a file picker. User navigates to a `.json` profile file provided by the admin. RESTer validates the file on add: if `min_version` is absent or the file is otherwise unreadable, it is rejected immediately with a clear error — it is not added to the library. Valid files are copied to the install location and added to the list. Only needs to happen once per profile.
+- **Load button** — per-profile. Records the active profile selection. **Hard block if Revit is running** — the Load button is disabled (not just warned) when any `Revit.exe` process is detected. The reason is shown inline. The button re-enables automatically once the process is gone. No confirmation gate is required — the hard block is sufficient. After a successful load, user opens Revit normally.
+- **Remove button** — per-profile. Removes the profile from the list and deletes the copied file from the install location. Does not affect the original file shared by the admin. Confirmation prompt before deletion. If the removed profile was the active one, the active profile state is cleared — on the next Revit launch the runtime prompts the user to load a profile via the Profile Selector.
+- **Active profile indicator** — shows which profile is currently loaded for the selected Revit version. Persists across sessions.
+
+> **⚠ Version Mismatch — User Accepted Risk:** If a profile's `min_version` is newer than the selected Revit install, the profile card shows a persistent inline version mismatch flag. Loading it is not blocked. No further handling is provided by the Profile Selector — the user proceeds at their own risk. Any tool failures at runtime surface a generic failure toast.
+
+> **⚠ Corrupt Profile:** A profile file missing `min_version` or otherwise unreadable is treated as corrupt. It is rejected at the point of adding it in the Profile Selector and is never added to the user's library. A clear error message names the file and states it could not be read.
+
+### Runtime — Profile Tab
+
+The custom Revit ribbon tab built from the active profile file. Purely tool content — no RESTer buttons appear on the profile tab itself.
+
+- **Profile tab** — named as set by the admin. Built on every Revit launch from the active profile file.
+- **Panel buttons (large)** — full-slot buttons. Show tool name and icon. Click invokes the tool via `PostCommand`.
+- **Panel buttons (small stack)** — 3-stack layout within a single slot. Same behaviour as large buttons but compact. Tool name truncated; full name shown on hover.
+- **Failure toast** — non-blocking notification if `PostCommand` cannot execute. States that the profile may be incompatible with the running Revit version or the required add-in version may not be installed. Generic — does not name a specific command or add-in. Auto-dismisses.
+
+---
+
+## 11 · Known Limitations
+
+This is an open source tool targeting a community that is already accustomed to managing Revit fragility. The following limitations are acknowledged and accepted as part of the design philosophy. Community contributions are the primary mitigation path for most of these.
+
+| Area | Limitation | Mitigation | Status |
+|---|---|---|---|
+| Revit version scope | Supported from Revit 2024+. Profiles built on newer Revit versions may not work on older installs — CommandIds may differ or be absent | Profile `min_version` written automatically at export and surfaced in the Profile Selector. Users loading mismatched profiles are warned; tool failures surface version metadata. Use at own risk — no further handling provided. | Accepted |
+| PostCommand scope | `PostCommand` queues execution asynchronously and may not cover every add-in command — requires POC confirmation per Revit version | Validated at record time — invalid CommandIds rejected with clear message; version-pinned testing per release | Verify First |
+| Add-in support scope | Only add-ins that register commands correctly as ribbon items are supported — commands not visible in Revit's shortcut dialog cannot be captured | By design — non-registering add-ins are an add-in quality problem; they fail cleanly at record time with a clear message | Accepted |
+| Ribbon API fragility | Version-sensitive; may break on new Revit releases | Version-pinned testing; community patches per Revit release | Accepted |
+| Panel and tool colors | Color input is hex code only — no color picker widget. Admin must know or look up their hex values. | Simpler implementation, no widget dependency. Revit API and pyRevit ribbon API both confirmed to support color. Hex is sufficient for the target user. | Confirmed |
+| Tab autohide | Native Revit API support for hiding add-in tabs confirmed via pyRevit | Confirmed possible via pyRevit — existing source available as reference. Scoped to add-in tabs only; native Revit tabs are not hidden. | Confirmed |
+| Profile updates | No dynamic update — users must re-add the updated `.json` profile file via the Profile Selector to receive changes from the admin | Accepted by design; document clearly in README | Accepted |
+| Recording API | `ComponentManager.ItemExecuted` via `adwindows.dll` is not an officially supported Autodesk API — behaviour may change without notice on Revit updates | Widely used in the community; version-pinned testing per Revit release; community patches expected | Verify First |
+| Recording mode | Tool activates normally when admin clicks it during recording — execution cannot be cancelled without meaningful added complexity | Accepted by design — minor side effect in an admin-only session; documented in setup guide | Accepted |
+
+---
+
+## 12 · Open Questions
+
+The following questions are unresolved and should be addressed before development begins.
+
+- **Q01 — Tech stack** *(Resolved)* Python / pyRevit extension. Wider contributor pool, pyRevit hide tool available as reference, stronger training data for AI-assisted development.
+
+- **Q02 — Admin tool architecture** *(Resolved)* The Tab Creator runs inside Revit as a pyRevit tool, accessed from the Add-ins tab — it is both the profile management surface and the editor. Profile Selector is a separate standalone app for users, running outside Revit. They share a profile file format but are otherwise independent.
+
+- **Q03 — Multiple Revit versions** *(Resolved)* The Profile Selector includes a Revit version dropdown populated from detected local installs. The user selects which install they are configuring — this determines which `.addin` manifest paths are targeted. Profiles incompatible with the selected version are shown greyed out. Switching versions in the dropdown updates the active context throughout the app.
+
+- **Q04 — Panel and tool colors** *(Resolved)* Both panel background color and tool accent color are confirmed supported via Revit API and pyRevit ribbon API. Color input is hex code — no color picker widget.
+
+- **Q05 — Tab autohide** *(Resolved)* Confirmed possible via pyRevit. Existing source available as reference implementation.
+
+- **Q06 — Load order** *(Resolved)* Not applicable. Add-in activate/deactivate via `.addin.inactive` renaming is out of scope for this version. Tab visibility is managed at runtime via pyRevit; load order does not affect this mechanism.
+
+- **Q07 — Installer format** *(Resolved)* pyRevit extension distribution. No custom installer required.
+
+- **Q08 — Prefix character** *(Resolved)* Eliminated. The recording mechanism captures tool identity directly via CommandId at click time. No prefix convention is needed. The concept no longer exists in the workflow.
+
+- **Q09 — Tool name and identity** *(Resolved)* RESTer — Revit Environment Standardization Tool. The name is the tool. No associated commercial product.
+
+- **Q10 — Initial Revit version scope** *(Resolved)* Revit 2024+. This is the declared minimum supported version. Profile min_version metadata is written automatically at export time. Users may attempt to use profiles on older versions at their own risk — version mismatch is surfaced in the Profile Selector and at runtime on tool failure, but is not blocked.
+
+- **Q11 — PostCommand viability confirmation** *(Open)* `UIApplication.PostCommand(RevitCommandId)` is the committed execution mechanism. The POC must confirm it works reliably for both native Revit commands and properly-registered add-in commands across all target Revit versions (2024+). This is the first thing to build and test.
+
+- **Q12 — Stack name field** *(Resolved)* Stack names are shown in the Tab Creator for internal admin reference only. They help the admin keep stacks straight while building the profile. Not surfaced to users at any point — stacks have no visible label in the Revit ribbon.
+
+---
+
+## 13 · Next Steps
+
+Architecture decisions are locked. The immediate next step is design. Technical validation runs in parallel.
+
+- 🎨 **UI design — immediate:** design all three surfaces — the Tab Creator (inside Revit), the Profile Selector standalone app (outside Revit), and the Add-ins tab RESTer panel (two buttons). All core flows are specified. This is the right moment to move to design before any development begins.
+
+- 🔬 **Proof of concept — blocking:** test `UIApplication.PostCommand(RevitCommandId)` for both native Revit commands and properly-registered add-in commands across target Revit versions (2024+). Run this in parallel with design. If PostCommand fails, the execution model changes.
+
+- 🔬 **Proof of concept:** recording flow end-to-end — subscribe to `ComponentManager.ItemExecuted` via `adwindows.dll`, capture CommandId on ribbon click, validate `PostCommand` availability, resolve display name and icon. Confirm the round-trip is clean.
+
+- 📋 **Only one open question remains** (Q11) — PostCommand viability. Q03 (multi-version handling) and Q10 (version scope) are resolved. Q11 is answered by the POC.
+
+- 🏗️ **Define repository structure** and contribution guidelines for open source launch as a pyRevit extension.
+
+- 📝 **Draft README** — clear description, known limitations, admin setup guide, and contribution guidelines.
+
+- 🚀 **Community seeding** — identify target communities (pyRevit community, Revit API forum, RFO) for initial announcement.
+
+> **Philosophy:** The Revit API community has a pragmatic relationship with things breaking. "It works until Autodesk changes something" is the accepted social contract. This tool should be honest about its limitations, well-documented, and structured to accept community fixes per Revit release. That is more valuable than over-engineering for fragility that will happen regardless.
