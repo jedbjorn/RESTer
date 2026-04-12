@@ -65,35 +65,64 @@ try:
                 except Exception as e:
                     log.debug('FileInfo size read failed for %s: %s', model_path, e)
             # ACC / cloud fallback: doc.PathName is a cloud URL, not a real
-            # filesystem path. The local cache under CollaborationCache is what
-            # Revit actually reads/writes. Walk the cache tree for a file
-            # matching <doc.Title>.rvt, take newest mtime.
-            if not model_size_mb and model_name:
+            # filesystem path. Cache files in CollaborationCache are named by
+            # GUID, not title — so match by GUID when the API gives it to us,
+            # else fall back to the newest .rvt mtime in the cache tree.
+            if not model_size_mb:
                 try:
+                    # Try to pull model/project GUIDs from the cloud ModelPath
+                    guid_tokens = set()
+                    try:
+                        cmp = doc.GetCloudModelPath()
+                        if cmp is not None and not cmp.Empty:
+                            for getter in ('GetModelGUID', 'GetProjectGUID'):
+                                try:
+                                    g = getattr(cmp, getter)()
+                                    if g is not None:
+                                        guid_tokens.add(str(g).lower())
+                                except Exception:
+                                    pass
+                    except Exception:
+                        pass
+
                     local_appdata = os.environ.get('LOCALAPPDATA', '')
                     cache_root = os.path.join(local_appdata, 'Autodesk', 'Revit') if local_appdata else ''
-                    target = model_name if model_name.lower().endswith('.rvt') else (model_name + '.rvt')
-                    target_lower = target.lower()
-                    best = None  # (mtime, path, size)
+                    best_by_guid = None    # (mtime, path, size) — GUID-matched file
+                    newest_rvt = None      # (mtime, path, size) — any .rvt, newest mtime
+
                     if cache_root and os.path.isdir(cache_root):
                         for ver_entry in os.listdir(cache_root):
                             cc = os.path.join(cache_root, ver_entry, 'CollaborationCache')
                             if not os.path.isdir(cc):
                                 continue
                             for walk_root, _dirs, files in os.walk(cc):
+                                path_lower = walk_root.lower()
+                                path_has_guid = any(g in path_lower for g in guid_tokens) if guid_tokens else False
                                 for f in files:
-                                    if f.lower() == target_lower:
-                                        full = os.path.join(walk_root, f)
-                                        try:
-                                            st = os.stat(full)
-                                            if best is None or st.st_mtime > best[0]:
-                                                best = (st.st_mtime, full, st.st_size)
-                                        except OSError:
-                                            pass
-                    if best:
-                        _mt, _fp, _sz = best
+                                    if not f.lower().endswith('.rvt'):
+                                        continue
+                                    full = os.path.join(walk_root, f)
+                                    try:
+                                        st = os.stat(full)
+                                    except OSError:
+                                        continue
+                                    entry = (st.st_mtime, full, st.st_size)
+                                    if newest_rvt is None or st.st_mtime > newest_rvt[0]:
+                                        newest_rvt = entry
+                                    name_lower = f.lower()
+                                    if guid_tokens and (path_has_guid or any(g in name_lower for g in guid_tokens)):
+                                        if best_by_guid is None or st.st_mtime > best_by_guid[0]:
+                                            best_by_guid = entry
+
+                    pick = best_by_guid or newest_rvt
+                    if pick:
+                        _mt, _fp, _sz = pick
                         model_size_mb = str(round(_sz / (1024.0 * 1024.0), 1))
-                        log.info('Found ACC model cache: %s (%s MB)', _fp, model_size_mb)
+                        log.info(
+                            'Resolved ACC model cache (%s): %s (%s MB)',
+                            'GUID match' if best_by_guid else 'newest .rvt',
+                            _fp, model_size_mb,
+                        )
                 except Exception as e:
                     log.debug('CollaborationCache fallback failed: %s', e)
             try:
