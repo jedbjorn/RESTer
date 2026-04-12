@@ -40,6 +40,7 @@ try:
 except Exception as e:
     log.debug('Could not read Application: %s', e)
 
+model_size_mb = ''
 try:
     uidoc = __revit__.ActiveUIDocument  # noqa: F821
     if uidoc:
@@ -53,6 +54,16 @@ try:
                 model_path = str(doc.PathName) if doc.PathName else ''
             except Exception:
                 pass
+            if model_path:
+                try:
+                    import clr
+                    clr.AddReference('mscorlib')
+                    from System.IO import FileInfo
+                    fi = FileInfo(model_path)
+                    if fi.Exists:
+                        model_size_mb = str(round(fi.Length / (1024.0 * 1024.0), 1))
+                except Exception as e:
+                    log.debug('FileInfo size read failed for %s: %s', model_path, e)
             try:
                 warnings_count = str(len(list(doc.GetWarnings())))
             except Exception:
@@ -69,6 +80,7 @@ for flag, val in (
     ('--revit-username', revit_username),
     ('--model-name',     model_name),
     ('--model-path',     model_path),
+    ('--model-size-mb',  model_size_mb),
     ('--warnings-count', warnings_count),
 ):
     if val:

@@ -621,7 +621,11 @@
             rv.hardwareAcceleration === true ? 'ok' :
             rv.hardwareAcceleration === false ? 'warn' : null),
           row('Model', mdl.name
-            ? `${mdl.name}${mdl.sizeMB != null ? `<span class="sub${subCls(modelSev)}">${mdl.sizeMB} MB · ${fmt.str(mdl.path)}</span>` : ''}`
+            ? `${mdl.name}${
+                mdl.path ? `<span class="sub">${mdl.path}</span>` : ''
+              }${
+                mdl.sizeMB != null ? `<span class="sub${subCls(modelSev)}">${mdl.sizeMB.toLocaleString()} MB</span>` : ''
+              }`
             : null),
           row('Warnings', (rv.warningsCount != null)
             ? `${fmt.num(rv.warningsCount)}${severityBreakdown ? `<span class="sub">${severityBreakdown}</span>` : ''}`

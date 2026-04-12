@@ -32,6 +32,13 @@ def _norm_int(s):
         return None
 
 
+def _norm_float(s):
+    try:
+        return float(s) if s not in (None, '') else None
+    except (ValueError, TypeError):
+        return None
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('--revit-version')
@@ -39,6 +46,7 @@ def main():
     p.add_argument('--revit-username')
     p.add_argument('--model-name')
     p.add_argument('--model-path')
+    p.add_argument('--model-size-mb')
     p.add_argument('--warnings-count')
     args = p.parse_args()
 
@@ -50,6 +58,7 @@ def main():
             revit_username=_norm(args.revit_username),
             model_name=_norm(args.model_name),
             model_path=_norm(args.model_path),
+            model_size_mb=_norm_float(args.model_size_mb),
             warnings_count=_norm_int(args.warnings_count),
         )
         save_health_snapshot(snap, HEALTH_SCAN_PATH)

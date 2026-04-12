@@ -322,19 +322,21 @@ def _get_hardware_acceleration(revit_version):
     return None
 
 
-def _get_model_info(model_name, model_path):
-    """Return model metadata including file size."""
+def _get_model_info(model_name, model_path, size_mb_override=None):
+    """Return model metadata. `size_mb_override` wins when provided
+    (useful when the caller already measured via .NET FileInfo);
+    otherwise fall back to os.path.getsize."""
     info = {
         'name': model_name or '',
         'path': model_path or '',
-        'sizeMB': None,
+        'sizeMB': size_mb_override,
     }
-    if model_path:
+    if info['sizeMB'] is None and model_path:
         try:
             size_bytes = os.path.getsize(model_path)
             info['sizeMB'] = round(size_bytes / (1024 * 1024), 1)
-        except OSError:
-            pass
+        except OSError as e:
+            log.warning('getsize failed for model path %r: %s (cloud URL?)', model_path, e)
     return info
 
 
@@ -343,6 +345,7 @@ def _get_model_info(model_name, model_path):
 def capture_health_snapshot(revit_version=None, revit_build=None,
                             revit_username=None,
                             model_name=None, model_path=None,
+                            model_size_mb=None,
                             warnings_count=None, warnings_by_severity=None):
     """Capture a full system health snapshot.
 
@@ -374,7 +377,7 @@ def capture_health_snapshot(revit_version=None, revit_build=None,
             'build':                  revit_build or '',
             'username':               revit_username or '',
             'hardwareAcceleration':   _get_hardware_acceleration(revit_version),
-            'model':                  _get_model_info(model_name, model_path),
+            'model':                  _get_model_info(model_name, model_path, model_size_mb),
             'warningsCount':          warnings_count,
             'warningsBySeverity':     warnings_by_severity or {},
         },
