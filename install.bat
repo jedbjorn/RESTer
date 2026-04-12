@@ -90,7 +90,7 @@ rem ---------- Step 2: pywebview ----------
 :step2
 echo.
 echo [2/3] pywebview...
-py -3.12 -m pip install --upgrade pywebview
+py -3.12 -m pip install --user --upgrade pywebview
 if errorlevel 1 goto :step2_fail
 set "STEP2=OK"
 goto :step3
