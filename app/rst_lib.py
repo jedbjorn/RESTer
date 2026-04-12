@@ -338,13 +338,16 @@ def get_rst_tab_names():
 
 
 def get_active_profile():
-    """Return dict with 'id' and 'name' of the active profile, or None."""
+    """Return dict with 'id', 'name', 'hidden_tabs', 'disable_non_required'
+    of the active profile, or None if no active_profile.json exists."""
     data = load_json_safe(ACTIVE_PROFILE_PATH)
     if not data:
         return None
     return {
         'id': data.get('profile_id'),
         'name': data.get('profile'),
+        'hidden_tabs': data.get('hidden_tabs', []),
+        'disable_non_required': data.get('disable_non_required', False),
     }
 
 

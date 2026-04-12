@@ -718,3 +718,24 @@ def clear_intent_log(username, version):
             log.info('Intent log cleared: %s', path)
         except OSError as e:
             log.error('Failed to clear intent log %s: %s', path, e)
+
+
+def restore_profile_addins(username, version, loaded_addins, all_tabs,
+                           addin_lookup, addin_panels):
+    """Restore all .RSTdisabled add-ins and rebuild user config from current state.
+
+    Writes an intent log, sweeps the filesystem via restore_all_addins, then
+    rebuilds + saves the user config and clears the intent log. Returns the
+    list of restored add-in names. Raises on unexpected failures — callers
+    wrap with their own response envelope."""
+    from addin_scanner import restore_all_addins
+
+    write_intent_log(username, version, 'restore_all', None, [])
+    restored_names = restore_all_addins(version)
+    config = build_user_config(
+        username, version,
+        loaded_addins, all_tabs, addin_lookup, addin_panels,
+    )
+    save_user_config(config)
+    clear_intent_log(username, version)
+    return restored_names

@@ -24,15 +24,14 @@ from rst_lib import (
 )
 from addin_scanner import (
     load_addin_lookup, get_addins_dirs, _find_all_addin_files,
-    resolve_tab_to_addin, restore_all_addins,
+    resolve_tab_to_addin,
 )
 from user_config import (
     load_user_config,
     save_user_config,
     save_addin_defaults,
     build_user_config,
-    write_intent_log,
-    clear_intent_log,
+    restore_profile_addins,
 )
 
 _html_path = os.path.join(UI_DIR, 'profile_manager.html')
@@ -171,18 +170,13 @@ class TabCreatorAPI:
         if not version:
             return {'ok': False, 'error': 'No Revit version'}
         try:
-            username = self._get_username()
-            write_intent_log(username, version, 'restore_all', None, [])
-            restored_names = restore_all_addins(version)
-            config = build_user_config(
-                username, version,
+            restored_names = restore_profile_addins(
+                self._get_username(), version,
                 _revit_data.get('loaded_addins', []),
                 _revit_data.get('all_tabs', []),
                 load_addin_lookup(),
                 _revit_data.get('addin_panels', []),
             )
-            save_user_config(config)
-            clear_intent_log(username, version)
             return {'ok': True, 'restored': restored_names}
         except Exception as e:
             import traceback

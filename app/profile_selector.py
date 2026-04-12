@@ -11,7 +11,7 @@ from rst_lib import (
     EXT_ROOT, PROFILES_DIR, ACTIVE_PROFILE_PATH, UI_DIR,
     REQUIRED_PROFILE_FIELDS, validate_profile,
     safe_filename, find_profile, resolve_profile,
-    ensure_profile_id, is_active_profile,
+    ensure_profile_id, is_active_profile, get_active_profile,
     match_addins, scan_profiles,
 )
 
@@ -52,7 +52,6 @@ from addin_scanner import (
     BUILTIN_TABS,
     load_addin_lookup,
     disable_non_required_addins,
-    restore_all_addins,
     _is_readonly_dir as _is_program_files,
 )
 from user_config import (
@@ -64,6 +63,7 @@ from user_config import (
     update_addin_states,
     write_intent_log,
     clear_intent_log,
+    restore_profile_addins,
 )
 
 # Load session data written by the IronPython pushbutton
@@ -257,25 +257,11 @@ class ProfileSelectorAPI:
             return {'ok': False, 'error': 'No Revit version'}
 
         try:
-            username = self._get_username()
-
-            # Write intent log for restore
-            write_intent_log(username, version, 'restore_all', None, [])
-
-            # Sweep filesystem for .RSTdisabled files and rename back
-            restored_names = restore_all_addins(version)
-
-            # Clean slate: rebuild user config from current state
-            config = build_user_config(
-                username, version,
-                self._loaded_addins,
-                self._all_tabs,
-                load_addin_lookup(),
-                self._addin_panels,
+            restored_names = restore_profile_addins(
+                self._get_username(), version,
+                self._loaded_addins, self._all_tabs,
+                load_addin_lookup(), self._addin_panels,
             )
-            save_user_config(config)
-
-            clear_intent_log(username, version)
             return {'ok': True, 'restart_needed': True, 'restored': restored_names}
         except Exception as e:
             import traceback
@@ -289,21 +275,13 @@ class ProfileSelectorAPI:
         return profiles
 
     def get_active_profile(self):
-        if not os.path.exists(ACTIVE_PROFILE_PATH):
-            log.debug('No active_profile.json found')
+        active = get_active_profile()
+        if active is None:
             return {'id': None, 'name': None, 'hidden_tabs': [], 'disable_non_required': False}
-        try:
-            with open(ACTIVE_PROFILE_PATH, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            pid = data.get('profile_id')
-            name = data.get('profile')
-            hidden = data.get('hidden_tabs', [])
-            disable = data.get('disable_non_required', False)
-            log.info('Active profile: %s [%s] (hidden: %d tabs, disable=%s)', name, pid, len(hidden), disable)
-            return {'id': pid, 'name': name, 'hidden_tabs': hidden, 'disable_non_required': disable}
-        except (json.JSONDecodeError, IOError) as e:
-            log.error('Failed to read active_profile.json: %s', e)
-            return {'id': None, 'name': None, 'hidden_tabs': [], 'disable_non_required': False}
+        log.info('Active profile: %s [%s] (hidden: %d tabs, disable=%s)',
+                 active['name'], active['id'],
+                 len(active['hidden_tabs']), active['disable_non_required'])
+        return active
 
     def add_profile(self):
         log.info('Opening file dialog for profile import')
