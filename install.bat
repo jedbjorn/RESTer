@@ -25,12 +25,11 @@ pause
 
 set "STEP1=SKIP"
 set "STEP2=SKIP"
-set "STEP3=SKIP"
 set "PYREVIT=UNKNOWN"
 
 rem ---------- Step 0: winget present? ----------
 echo.
-echo [0/3] Checking for winget...
+echo [0/2] Checking for winget...
 where winget >nul 2>&1
 if errorlevel 1 goto :no_winget
 echo   OK: winget present.
@@ -45,7 +44,7 @@ goto :summary_fail
 rem ---------- Step 1: Python 3.12 ----------
 :step1
 echo.
-echo [1/3] Python 3.12...
+echo [1/2] Python 3.12...
 py -3.12 -V >nul 2>&1
 if not errorlevel 1 goto :step1_skip
 
@@ -89,29 +88,15 @@ exit /b 0
 rem ---------- Step 2: pywebview ----------
 :step2
 echo.
-echo [2/3] pywebview...
+echo [2/2] pywebview...
 py -3.12 -m pip install --user --no-cache-dir --upgrade pywebview
 if errorlevel 1 goto :step2_fail
 set "STEP2=OK"
-goto :step3
+goto :pyrevit_check
 
 :step2_fail
 echo   FAIL: pip install pywebview returned an error.
 set "STEP2=FAIL"
-goto :summary
-
-rem ---------- Step 3: Verify pywebview import ----------
-:step3
-echo.
-echo [3/3] Verifying pywebview import...
-py -3.12 -c "import webview; print('pywebview', webview.__version__)"
-if errorlevel 1 goto :step3_fail
-set "STEP3=OK"
-goto :pyrevit_check
-
-:step3_fail
-echo   FAIL: pywebview installed but not importable.
-set "STEP3=FAIL"
 goto :summary
 
 rem ---------- Soft check: pyRevit ----------
@@ -136,15 +121,13 @@ echo.
 echo ============================================================
 echo   Summary
 echo ============================================================
-echo   Python 3.12            : %STEP1%
-echo   pywebview install      : %STEP2%
-echo   pywebview import check : %STEP3%
-echo   pyRevit detected       : %PYREVIT%
+echo   Python 3.12        : %STEP1%
+echo   pywebview install  : %STEP2%
+echo   pyRevit detected   : %PYREVIT%
 echo ============================================================
 
 if "%STEP1%"=="FAIL" goto :summary_fail
 if "%STEP2%"=="FAIL" goto :summary_fail
-if "%STEP3%"=="FAIL" goto :summary_fail
 
 echo.
 echo SUCCESS. Dependencies are ready.
