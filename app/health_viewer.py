@@ -26,6 +26,8 @@ log = get_logger('health_viewer')
 _html_path = os.path.join(UI_DIR, 'health_viewer.html')
 
 _REVIT_VERSION_RE = re.compile(r'^Revit\s+\d{4}$', re.IGNORECASE)
+_REVIT_APPDATA_DIR_RE = re.compile(r'^Autodesk Revit \d{4}$', re.IGNORECASE)
+_RECENT_FILE_ENTRY_RE = re.compile(r'^\s*File\d+\s*=', re.IGNORECASE)
 
 
 def _purge_flat(path, label='purge'):
@@ -84,6 +86,56 @@ def _purge_collab_cache(path, label='collabCache'):
     return deleted, skipped
 
 
+def _purge_recent_file_list(ini_path, label='recentFiles'):
+    """Strip FileN= entries under [Recent File List] in a Revit.ini, preserving
+    everything else (including the section header). Atomic rewrite via temp file.
+    Returns (deleted_count, skipped_count) — skipped is 1 on any IO error
+    (usually means Revit is running and holding the file)."""
+    if not os.path.isfile(ini_path):
+        log.info('[%s] ini missing, skipping: %s', label, ini_path)
+        return 0, 0
+    try:
+        with open(ini_path, 'r', encoding='utf-8', errors='ignore') as f:
+            lines = f.readlines()
+    except OSError as e:
+        log.warning('[%s] could not read %s: %s', label, ini_path, e)
+        return 0, 1
+
+    out = []
+    in_section = False
+    deleted = 0
+    for raw in lines:
+        stripped = raw.strip()
+        if stripped.startswith('[') and stripped.endswith(']'):
+            in_section = (stripped.lower() == '[recent file list]')
+            out.append(raw)
+            continue
+        if in_section and _RECENT_FILE_ENTRY_RE.match(raw):
+            deleted += 1
+            continue
+        out.append(raw)
+
+    if deleted == 0:
+        log.info('[%s] %s: nothing to remove', label, ini_path)
+        return 0, 0
+
+    tmp_path = ini_path + '.rsttmp'
+    try:
+        with open(tmp_path, 'w', encoding='utf-8') as f:
+            f.writelines(out)
+        os.replace(tmp_path, ini_path)
+        log.info('[%s] %s: deleted=%d', label, ini_path, deleted)
+        return deleted, 0
+    except OSError as e:
+        log.warning('[%s] could not write %s: %s (Revit running?)', label, ini_path, e)
+        try:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+        except OSError:
+            pass
+        return 0, 1
+
+
 class HealthViewerAPI:
     def __init__(self):
         self.window = None
@@ -104,8 +156,11 @@ class HealthViewerAPI:
         """Delete junk files per selected categories. Returns per-category
         {deleted, skipped} counts plus per-category skipped totals.
 
-        categories: {'temp': bool, 'pacCache': bool, 'journals': bool, 'collabCache': bool}
-        Journals + collabCache sweep every installed `Revit YYYY` subdir under AppData\\Local\\Autodesk\\Revit.
+        categories: {'temp': bool, 'pacCache': bool, 'journals': bool,
+                     'collabCache': bool, 'recentFiles': bool}
+        Journals + collabCache sweep every installed `Revit YYYY` subdir under
+        AppData\\Local\\Autodesk\\Revit. recentFiles sweeps `Autodesk Revit YYYY`
+        subdirs under AppData\\Roaming\\Autodesk\\Revit (where Revit.ini lives).
         """
         log.info('=== clean_junk invoked with categories=%s ===', categories)
         categories = categories or {}
@@ -113,9 +168,10 @@ class HealthViewerAPI:
         tdir = os.path.join(userdir, 'AppData', 'Local', 'Temp')
         pcdir = os.path.join(userdir, 'AppData', 'Local', 'Autodesk', 'Revit', 'PacCache')
         revit_root = os.path.join(userdir, 'AppData', 'Local', 'Autodesk', 'Revit')
+        revit_roaming = os.path.join(userdir, 'AppData', 'Roaming', 'Autodesk', 'Revit')
 
-        deleted = {'temp': 0, 'pacCache': 0, 'journals': 0, 'collabCache': 0}
-        skipped = {'temp': 0, 'pacCache': 0, 'journals': 0, 'collabCache': 0}
+        deleted = {'temp': 0, 'pacCache': 0, 'journals': 0, 'collabCache': 0, 'recentFiles': 0}
+        skipped = {'temp': 0, 'pacCache': 0, 'journals': 0, 'collabCache': 0, 'recentFiles': 0}
 
         if categories.get('temp'):
             d, s = _purge_flat(tdir, label='temp')
@@ -147,6 +203,20 @@ class HealthViewerAPI:
                                                label='collabCache/%s' % entry)
                     deleted['collabCache'] += d
                     skipped['collabCache'] += s
+
+        if categories.get('recentFiles'):
+            try:
+                subdirs = os.listdir(revit_roaming)
+            except OSError as e:
+                log.warning('Could not list %s: %s', revit_roaming, e)
+                subdirs = []
+            for entry in subdirs:
+                if not _REVIT_APPDATA_DIR_RE.match(entry):
+                    continue
+                ini_path = os.path.join(revit_roaming, entry, 'Revit.ini')
+                d, s = _purge_recent_file_list(ini_path, label='recentFiles/%s' % entry)
+                deleted['recentFiles'] += d
+                skipped['recentFiles'] += s
 
         log.info('=== clean_junk result: deleted=%s skipped=%s ===', deleted, skipped)
         return {'deleted': deleted, 'skipped': skipped}

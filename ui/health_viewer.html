@@ -466,6 +466,17 @@
         </label>
       </div>
 
+      <div class="rst-junk-row">
+        <div class="rst-junk-row-text">
+          <div class="rst-junk-row-label">Recent Files List</div>
+          <span class="rst-junk-row-hint">Clear Revit's recent-files menu, every installed version</span>
+        </div>
+        <label class="rst-toggle">
+          <input type="checkbox" data-category="recentFiles" checked>
+          <div class="rst-toggle-track"><div class="rst-toggle-thumb"></div></div>
+        </label>
+      </div>
+
       <div class="rst-junk-actions">
         <button type="button" class="rst-junk-btn" id="junkCancel">Cancel</button>
         <button type="button" class="rst-junk-btn rst-junk-btn--primary" id="junkRun">Clean Selected</button>
@@ -766,6 +777,7 @@
       fmt('PacCache', 'pacCache');
       fmt('Journals', 'journals');
       fmt('Collab',   'collabCache');
+      fmt('Recent',   'recentFiles');
       RSTmsgInform('Cleanup complete', lines.join('\n'));
     } catch (e) {
       RSTmsgWaitClose();

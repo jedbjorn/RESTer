@@ -290,7 +290,7 @@ def _parse_display(wmi):
 # ── Model Info ───────────────────────────────────────────────────────────────
 
 def _get_hardware_acceleration(revit_version):
-    """Read UseHardwareAcceleration from the per-user Revit.ini.
+    """Read UseGraphicsHardware from the per-user Revit.ini.
 
     Returns True / False / None (None if the ini or key can't be resolved).
     Revit stores graphics settings under [Graphics] in:
@@ -315,7 +315,7 @@ def _get_hardware_acceleration(revit_version):
                     continue
                 if in_graphics and '=' in line:
                     key, _, val = line.partition('=')
-                    if key.strip().lower() == 'usehardwareacceleration':
+                    if key.strip().lower() == 'usegraphicshardware':
                         return val.strip() == '1'
     except OSError as e:
         log.warning('Failed to read Revit.ini at %s: %s', ini_path, e)
