@@ -239,7 +239,7 @@ def get_installed_commands():
 _BUILTIN_TABS = {
     'Architecture', 'Structure', 'Systems', 'Steel', 'Precast',
     'Insert', 'Annotate', 'Analyze', 'Massing & Site', 'Collaborate',
-    'View', 'Manage', 'Modify', 'Add-Ins', 'Create', 'RSTPro',
+    'View', 'Manage', 'Modify', 'Add-Ins', 'Create', 'RST',
     'FormIt', 'FormIt Converter', 'eTransmit',
     'Modify | Walls', 'Modify | Floors', 'Modify | Roofs',
     'Modify | Structural Framing', 'Modify | Generic Models',

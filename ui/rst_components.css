@@ -1,4 +1,4 @@
-/* rst_components.css — Shared UI component library for RSTPro
+/* rst_components.css — Shared UI component library for RST
    Import in any HTML file: <link rel="stylesheet" href="rst_components.css">
    Uses CSS custom properties from the host page (--surface3, --border2, --accent3, --warn, --text3, --border). */
 
@@ -91,7 +91,7 @@
 
 /* ── SCROLLBAR ────────────────────────────────────────────────────────────────
    Apply .rst-scroll to any scrollable container.
-   Provides a minimal 3px scrollbar matching RSTPro's dark UI.
+   Provides a minimal 3px scrollbar matching RST's dark UI.
 */
 
 .rst-scroll::-webkit-scrollbar { width: 3px; height: 3px; }

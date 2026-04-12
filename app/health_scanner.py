@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-health_scanner.py — System health snapshot for RST_Pro.
+health_scanner.py — System health snapshot for RST.
 
 Captures hardware, OS, and Revit session data at a point in time.
 Currently runs at load; future: runs when a Revit model is opened.

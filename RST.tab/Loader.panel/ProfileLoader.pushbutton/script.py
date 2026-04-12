@@ -39,11 +39,11 @@ except Exception:
 _loaded_addins = []
 _all_tabs = []
 _addin_panels = []  # panels on built-in tabs that belong to third-party add-ins
-_SKIP_TABS = {'RSTPro'}
+_SKIP_TABS = {'RST'}
 _BUILTIN_TABS = {
     'Architecture', 'Structure', 'Systems', 'Steel', 'Precast',
     'Insert', 'Annotate', 'Analyze', 'Massing & Site', 'Collaborate',
-    'View', 'Manage', 'Modify', 'Add-Ins', 'Create', 'RSTPro',
+    'View', 'Manage', 'Modify', 'Add-Ins', 'Create', 'RST',
     'FormIt', 'FormIt Converter', 'eTransmit',
     'Modify | Walls', 'Modify | Floors', 'Modify | Roofs',
     'Modify | Structural Framing', 'Modify | Generic Models',

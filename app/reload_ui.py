@@ -27,7 +27,7 @@ def reload_with_message():
     msg.Margin = Thickness(24, 16, 24, 16)
 
     win = Window()
-    win.Title = 'RSTPro'
+    win.Title = 'RST'
     win.Content = msg
     win.SizeToContent = SizeToContent.WidthAndHeight
     win.WindowStartupLocation = WindowStartupLocation.CenterScreen
