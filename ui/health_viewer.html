@@ -226,6 +226,19 @@
     letter-spacing: 0.02em;
   }
 
+  /* Severity tint applied to the entire .sub line */
+  .sub--ok        { color: var(--accent3); }
+  .sub--warn-soft { color: var(--warn-soft); }
+  .sub--warn      { color: var(--warn); }
+  .sub--danger    { color: var(--danger); }
+
+  /* Severity tint applied to a single inline token inside a .sub
+     (used when only part of the sub is dynamic, e.g. CPU %used) */
+  .sub-accent--ok        { color: var(--accent3); }
+  .sub-accent--warn-soft { color: var(--warn-soft); }
+  .sub-accent--warn      { color: var(--warn); }
+  .sub-accent--danger    { color: var(--danger); }
+
   /* ── FOOTER ──────────────────────────────────────────────────────────── */
   .window-footer {
     height: 52px;
@@ -519,6 +532,15 @@
       else if (ram.usedPercent >= 75) ramSev = 'warn';
     }
 
+    // CPU (single-sample, noisy — generous thresholds):
+    //   <60 ok · 60-80 warn-soft · 80-90 warn · >=90 danger
+    let cpuSev = 'ok';
+    if (cpu.usedPercent != null) {
+      if (cpu.usedPercent >= 90) cpuSev = 'danger';
+      else if (cpu.usedPercent >= 80) cpuSev = 'warn';
+      else if (cpu.usedPercent >= 60) cpuSev = 'warn-soft';
+    }
+
     // Disk free: >100GB ok · 50-100GB warn-soft · 30-50GB warn · <30GB danger
     let diskSev = 'ok';
     if (disk.availableGB != null) {
@@ -527,7 +549,18 @@
       else if (disk.availableGB < 100) diskSev = 'warn-soft';
     }
 
-    const hwDot = worse(ramSev, diskSev);
+    // Model size: <1GB ok · 1-1.5GB warn-soft · 1.5-2GB warn · >=2GB danger
+    let modelSev = 'ok';
+    if (mdl.sizeMB != null) {
+      if (mdl.sizeMB >= 2048) modelSev = 'danger';
+      else if (mdl.sizeMB >= 1536) modelSev = 'warn';
+      else if (mdl.sizeMB >= 1024) modelSev = 'warn-soft';
+    }
+
+    const hwDot = worse(worse(ramSev, diskSev), cpuSev);
+
+    // Helper: build a .sub with optional severity class (whole sub colored)
+    const subCls = (sev) => (sev && sev !== 'ok') ? ` sub--${sev}` : '';
 
     const accelWarn = (rv.hardwareAcceleration === false);
     const warnLot   = (rv.warningsCount != null && rv.warningsCount >= 500);
@@ -544,17 +577,21 @@
         rows: [
           row('User', id.windowsUsername),
           row('CPU', cpu.name
-            ? `${cpu.name}<span class="sub">${cpu.physicalCores || '?'} cores · ${cpu.logicalCores || '?'} logical</span>`
+            ? `${cpu.name}<span class="sub">${cpu.physicalCores || '?'} cores · ${cpu.logicalCores || '?'} logical${
+                cpu.usedPercent != null
+                  ? ` · <span class="sub-accent--${cpuSev}">${fmt.pct(cpu.usedPercent)} used</span>`
+                  : ''
+              }</span>`
             : null),
           row('RAM', (ram.totalMB != null)
-            ? `${fmt.mb(ram.totalMB)}<span class="sub">${fmt.mb(ram.usedMB)} used · ${fmt.pct(ram.usedPercent)}</span>`
-            : null, ramSev !== 'ok' ? ramSev : null),
+            ? `${fmt.mb(ram.totalMB)}<span class="sub${subCls(ramSev)}">${fmt.mb(ram.usedMB)} used · ${fmt.pct(ram.usedPercent)}</span>`
+            : null),
           row('GPU', gpu.name
             ? `${gpu.name}<span class="sub">driver ${fmt.str(gpu.driverVersion)} · VRAM ${fmt.mb(gpu.vramTotalMB)}</span>`
             : null),
           row('Disk (C:)', (disk.totalGB != null)
-            ? `${fmt.str(disk.friendlyName)}<span class="sub">${fmt.str(disk.type)} · ${fmt.gb(disk.availableGB)} free of ${fmt.gb(disk.totalGB)} · ${fmt.pct(disk.usedPercent)} used</span>`
-            : null, diskSev !== 'ok' ? diskSev : null),
+            ? `${fmt.str(disk.friendlyName)}<span class="sub${subCls(diskSev)}">${fmt.str(disk.type)} · ${fmt.gb(disk.availableGB)} free of ${fmt.gb(disk.totalGB)} · ${fmt.pct(disk.usedPercent)} used</span>`
+            : null),
         ],
       }),
 
@@ -584,7 +621,7 @@
             rv.hardwareAcceleration === true ? 'ok' :
             rv.hardwareAcceleration === false ? 'warn' : null),
           row('Model', mdl.name
-            ? `${mdl.name}${mdl.sizeMB != null ? `<span class="sub">${mdl.sizeMB} MB · ${fmt.str(mdl.path)}</span>` : ''}`
+            ? `${mdl.name}${mdl.sizeMB != null ? `<span class="sub${subCls(modelSev)}">${mdl.sizeMB} MB · ${fmt.str(mdl.path)}</span>` : ''}`
             : null),
           row('Warnings', (rv.warningsCount != null)
             ? `${fmt.num(rv.warningsCount)}${severityBreakdown ? `<span class="sub">${severityBreakdown}</span>` : ''}`

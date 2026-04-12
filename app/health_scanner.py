@@ -17,6 +17,7 @@ import os
 import platform
 import shutil
 import subprocess
+import time
 from datetime import datetime, timezone
 
 log = logging.getLogger('rst')
@@ -59,6 +60,44 @@ def _get_ram():
 
 # ── CPU ──────────────────────────────────────────────────────────────────────
 
+class _FILETIME(ctypes.Structure):
+    _fields_ = [
+        ('dwLowDateTime',  ctypes.c_ulong),
+        ('dwHighDateTime', ctypes.c_ulong),
+    ]
+
+
+def _ft_to_int(ft):
+    return (ft.dwHighDateTime << 32) | ft.dwLowDateTime
+
+
+def _get_cpu_percent(interval=0.5):
+    """Snapshot CPU usage via two GetSystemTimes samples. Returns int 0-100 or None.
+
+    Windows kernel time includes idle time, so:  used% = 1 - idle / (kernel + user)
+    """
+    try:
+        idle1, kernel1, user1 = _FILETIME(), _FILETIME(), _FILETIME()
+        if not ctypes.windll.kernel32.GetSystemTimes(
+                ctypes.byref(idle1), ctypes.byref(kernel1), ctypes.byref(user1)):
+            return None
+        time.sleep(interval)
+        idle2, kernel2, user2 = _FILETIME(), _FILETIME(), _FILETIME()
+        if not ctypes.windll.kernel32.GetSystemTimes(
+                ctypes.byref(idle2), ctypes.byref(kernel2), ctypes.byref(user2)):
+            return None
+        idle_d   = _ft_to_int(idle2)   - _ft_to_int(idle1)
+        kernel_d = _ft_to_int(kernel2) - _ft_to_int(kernel1)
+        user_d   = _ft_to_int(user2)   - _ft_to_int(user1)
+        total = kernel_d + user_d
+        if total <= 0:
+            return 0
+        return max(0, min(100, round((1 - idle_d / total) * 100)))
+    except Exception as e:
+        log.warning('Failed to sample CPU %%: %s', e)
+        return None
+
+
 def _get_cpu():
     """Return CPU info from registry and os module."""
     import winreg
@@ -99,6 +138,7 @@ def _get_cpu():
         'name':          name,
         'logicalCores':  logical_cores,
         'physicalCores': physical_cores,
+        'usedPercent':   _get_cpu_percent(),
     }
 
 
