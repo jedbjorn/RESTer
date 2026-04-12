@@ -1,6 +1,0 @@
-layout:
-  - Profiler
-  - Loader
-  - Minify
-  - Update
-  - Reload
