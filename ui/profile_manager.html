@@ -1180,6 +1180,20 @@
     cursor: default;
   }
 
+  .close-btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    padding: 5px 13px;
+    border-radius: 4px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text3);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .close-btn:hover { border-color: var(--border2); color: var(--text2); background: var(--surface2); }
+
   .tab-canvas {
     flex: 1;
     padding: 10px 18px;
@@ -1614,8 +1628,9 @@
         </div>
         <div class="tab-preview-lbl" style="margin-left:auto">Tab Preview</div>
         <button class="sb-add" onclick="renderTabCanvas()" style="font-size:9px;padding:2px 8px">Update Preview</button>
-        <div>
+        <div style="display:flex;gap:6px">
           <button class="export-btn" id="exportBtn" onclick="exportConfig()">Export Config →</button>
+          <button class="close-btn" onclick="window.pywebview.api.close_window()">Close</button>
         </div>
       </div>
 
