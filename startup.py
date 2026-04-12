@@ -22,6 +22,13 @@ from rst_lib import ACTIVE_PROFILE_PATH, PROFILES_DIR, ICONS_DIR, ICONPACK_DIR
 _default_icon_32 = os.path.join(ICONS_DIR, 'default_32.png')
 _default_icon_16 = os.path.join(ICONS_DIR, 'default_16.png')
 
+# Leak guards for ribbon rebuilds on pyRevit reload. Without these, every
+# reload layered a fresh generation of icons, handlers, and brushes on top
+# of the previous one — Revit would balloon to multi-GB after heavy testing.
+_icon_cache = {}          # icon_path -> BitmapImage, reused across rebuilds
+_size_changed_subs = []   # [(panel, handler)], detached before tab removal
+_last_brush_size = {}     # id(panel) -> (w, h), skip rebuild on spurious events
+
 
 def _reconcile_intent_log():
     """Check for incomplete rename operations from a previous session.
@@ -179,15 +186,28 @@ def _get_revit_version():
 
 
 def _load_icon(icon_path):
-    """Load a PNG file as a BitmapImage for the Revit ribbon."""
+    """Load a PNG file as a BitmapImage for the Revit ribbon.
+    Cached by path — reloads reuse the same BitmapImage rather than
+    re-decoding the PNG (which pins a fresh pixel buffer each time)."""
+    if not icon_path:
+        return None
+    cached = _icon_cache.get(icon_path)
+    if cached is not None:
+        return cached
     try:
         import clr
         clr.AddReference('PresentationCore')
         from System.Windows.Media.Imaging import BitmapImage
         from System import Uri, UriKind
-        if icon_path and os.path.exists(icon_path):
+        if os.path.exists(icon_path):
             uri = Uri(os.path.abspath(icon_path), UriKind.Absolute)
-            return BitmapImage(uri)
+            bmp = BitmapImage(uri)
+            try:
+                bmp.Freeze()  # cross-thread safe + lets WPF share the buffer
+            except Exception:
+                pass
+            _icon_cache[icon_path] = bmp
+            return bmp
     except Exception as e:
         log.debug('Could not load icon %s: %s', icon_path, e)
     return None
@@ -306,6 +326,18 @@ def _build_ribbon(profile):
     try:
         ribbon = ComponentManager.Ribbon
 
+        # Detach SizeChanged handlers from the previous build so the old
+        # panels + brush closures can be collected. Without this, each
+        # reload leaks a generation of WPF allocations rooted by the
+        # event chain — symptom: Revit memory climbs with every reload.
+        for _panel, _handler in _size_changed_subs:
+            try:
+                _panel.SizeChanged -= _handler
+            except Exception:
+                pass
+        del _size_changed_subs[:]
+        _last_brush_size.clear()
+
         # Remove ALL RST-created tabs by ID prefix (handles renames)
         to_remove = []
         for t in ribbon.Tabs:
@@ -392,19 +424,28 @@ def _build_ribbon(profile):
                     aw_panel.CustomPanelTitleBarBackground = brush
                     log.debug('Applied color %s to panel %s', panel_color, panel_name)
 
-                    # Recalculate radius on SizeChanged for fixed-pixel corners
+                    # Recalculate radius on SizeChanged for fixed-pixel corners.
+                    # Skip unchanged sizes — WPF fires SizeChanged spuriously
+                    # during layout and each rebuild allocates a full brush tree.
                     def _on_size_changed(sender, args, _color=panel_color, _alpha=panel_opacity):
                         try:
                             w = sender.ActualWidth
                             h = sender.ActualHeight
-                            if w > 10 and h > 10:
-                                sized_brush = _make_brush(_color, _alpha, w, h)
-                                if sized_brush:
-                                    sender.CustomPanelBackground = sized_brush
-                                    sender.CustomPanelTitleBarBackground = sized_brush
+                            if w <= 10 or h <= 10:
+                                return
+                            key = id(sender)
+                            prev = _last_brush_size.get(key)
+                            if prev and abs(prev[0] - w) < 1.0 and abs(prev[1] - h) < 1.0:
+                                return
+                            sized_brush = _make_brush(_color, _alpha, w, h)
+                            if sized_brush:
+                                sender.CustomPanelBackground = sized_brush
+                                sender.CustomPanelTitleBarBackground = sized_brush
+                                _last_brush_size[key] = (w, h)
                         except Exception:
                             pass
                     aw_panel.SizeChanged += _on_size_changed
+                    _size_changed_subs.append((aw_panel, _on_size_changed))
                 except Exception as e:
                     log.debug('Could not apply panel color: %s', e)
 
@@ -714,14 +755,21 @@ def _style_rst_admin_panels():
                                 try:
                                     w = sender.ActualWidth
                                     h = sender.ActualHeight
-                                    if w > 10 and h > 10:
-                                        sized = _make_brush(_c, _a, w, h)
-                                        if sized:
-                                            sender.CustomPanelBackground = sized
-                                            sender.CustomPanelTitleBarBackground = sized
+                                    if w <= 10 or h <= 10:
+                                        return
+                                    key = id(sender)
+                                    prev = _last_brush_size.get(key)
+                                    if prev and abs(prev[0] - w) < 1.0 and abs(prev[1] - h) < 1.0:
+                                        return
+                                    sized = _make_brush(_c, _a, w, h)
+                                    if sized:
+                                        sender.CustomPanelBackground = sized
+                                        sender.CustomPanelTitleBarBackground = sized
+                                        _last_brush_size[key] = (w, h)
                                 except Exception:
                                     pass
                             panel.SizeChanged += _on_admin_size
+                            _size_changed_subs.append((panel, _on_admin_size))
                         log.debug('Styled RST admin panel: %s', pid)
                     except Exception as e:
                         log.debug('Could not style panel: %s', e)
