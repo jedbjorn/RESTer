@@ -17,6 +17,7 @@ log = get_logger('tab_creator')
 
 from rst_lib import (
     EXT_ROOT, PROFILES_DIR, ICONS_DIR, ICONPACK_DIR, UI_DIR,
+    ACTIVE_PROFILE_PATH,
     safe_filename, resolve_profile,
     is_active_profile, ensure_profile_id,
 )
@@ -264,14 +265,36 @@ class TabCreatorAPI:
             active = is_active_profile(profile_id, raw_name)
 
             existing_fname, _ = resolve_profile(raw_name, profile_id)
-            if existing_fname:
+            if existing_fname and existing_fname != filename:
                 os.remove(os.path.join(PROFILES_DIR, existing_fname))
+                log.info('Removed previous filename: %s', existing_fname)
+            elif existing_fname:
                 log.info('Overwriting existing: %s', existing_fname)
 
             dest_path = os.path.join(PROFILES_DIR, filename)
             with open(dest_path, 'w', encoding='utf-8') as f:
                 json.dump(profile, f, indent=2)
             log.info('Saved to: %s', dest_path)
+
+            # If this was the active profile, update active_profile.json's
+            # profile_file pointer so startup.py can find the (possibly renamed)
+            # file on next reload. Preserve hidden_tabs / disable_non_required
+            # so a re-export doesn't wipe the loader's prior settings.
+            if active:
+                try:
+                    current_active = {}
+                    if os.path.exists(ACTIVE_PROFILE_PATH):
+                        with open(ACTIVE_PROFILE_PATH, 'r', encoding='utf-8') as f:
+                            current_active = json.load(f)
+                    current_active['profile'] = raw_name
+                    current_active['profile_id'] = profile_id
+                    current_active['profile_file'] = filename
+                    current_active['tab'] = profile.get('tab', current_active.get('tab', ''))
+                    with open(ACTIVE_PROFILE_PATH, 'w', encoding='utf-8') as f:
+                        json.dump(current_active, f, indent=2)
+                    log.info('Updated active_profile.json pointer → %s', filename)
+                except (OSError, ValueError) as e:
+                    log.warning('Could not update active_profile.json: %s', e)
 
             desktop = os.path.join(os.environ.get('USERPROFILE', ''), 'Desktop')
             desktop_path = None
