@@ -246,11 +246,12 @@
     border-top: 1px solid var(--border);
     display: flex;
     align-items: center;
-    justify-content: flex-end;
     padding: 0 18px;
     gap: 8px;
     flex-shrink: 0;
   }
+
+  .footer-spacer { flex: 1; }
 
   .rst-footer-btn {
     font-family: 'DM Mono', monospace;
@@ -264,15 +265,38 @@
     padding: 8px 16px;
     cursor: pointer;
     transition: background 0.15s, color 0.15s, border-color 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
   }
 
   .rst-footer-btn:hover { background: var(--surface2); }
+  .rst-footer-btn[disabled] { opacity: 0.65; cursor: progress; }
 
   .rst-footer-btn--clean:hover {
     background: rgba(245,158,11,0.18);
     color: var(--warn);
     border-color: rgba(245,158,11,0.45);
   }
+
+  .rst-footer-btn--scan {
+    color: var(--danger);
+    border-color: rgba(239,68,68,0.55);
+    background: transparent;
+  }
+  .rst-footer-btn--scan:hover:not([disabled]) {
+    background: rgba(239,68,68,0.14);
+  }
+
+  .rst-spinner {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(239,68,68,0.25);
+    border-top-color: var(--danger);
+    animation: rst-spin 0.7s linear infinite;
+  }
+  @keyframes rst-spin { to { transform: rotate(360deg); } }
 
   /* ── JUNK CLEANUP MODAL ──────────────────────────────────────────────── */
   .rst-junk-overlay {
@@ -385,6 +409,10 @@
   </div>
 
   <div class="window-footer">
+    <button type="button" class="rst-footer-btn rst-footer-btn--scan" id="btnScan">
+      <span class="rst-footer-btn__label">Scan System</span>
+    </button>
+    <div class="footer-spacer"></div>
     <button type="button" class="rst-footer-btn rst-footer-btn--clean" id="btnClean">Clean Junk Files</button>
     <button type="button" class="rst-footer-btn" id="btnClose">Close</button>
   </div>
@@ -495,15 +523,7 @@
 
   function render(snap) {
     const host = document.getElementById('sections');
-
-    if (!snap) {
-      host.innerHTML = `
-        <div class="empty-state">
-          <h2>No health snapshot yet</h2>
-          <p>Open Revit and click <strong>Profiler</strong> or <strong>Loader</strong> once to capture a snapshot, then reopen this window.</p>
-        </div>`;
-      return;
-    }
+    snap = snap || {};
 
     // Header meta
     const id = snap.identity || {};
@@ -655,6 +675,42 @@
   }
 
   window.addEventListener('pywebviewready', load);
+
+  // ── Scan button ──────────────────────────────────────────────────────────
+  const btnScan = document.getElementById('btnScan');
+  const scanLabel = btnScan.querySelector('.rst-footer-btn__label');
+
+  function setScanLoading(loading) {
+    btnScan.disabled = loading;
+    if (loading) {
+      scanLabel.textContent = 'Scanning…';
+      if (!btnScan.querySelector('.rst-spinner')) {
+        const s = document.createElement('span');
+        s.className = 'rst-spinner';
+        btnScan.insertBefore(s, scanLabel);
+      }
+    } else {
+      scanLabel.textContent = 'Scan System';
+      const s = btnScan.querySelector('.rst-spinner');
+      if (s) s.remove();
+    }
+  }
+
+  btnScan.addEventListener('click', async function () {
+    setScanLoading(true);
+    try {
+      const result = await window.pywebview.api.run_scan();
+      if (result && result.ok) {
+        render(result.data);
+      } else {
+        RSTmsgInform('Scan failed', (result && result.error) || 'Unknown error');
+      }
+    } catch (e) {
+      RSTmsgInform('Scan failed', String(e));
+    } finally {
+      setScanLoading(false);
+    }
+  });
 
   // ── Footer buttons + Junk cleanup modal ──────────────────────────────────
   const junkOverlay = document.getElementById('junkOverlay');

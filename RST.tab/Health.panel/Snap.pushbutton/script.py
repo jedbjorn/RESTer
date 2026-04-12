@@ -1,13 +1,17 @@
 # -*- coding: utf-8 -*-
-"""Snap — Capture a fresh health snapshot then launch the Health viewer."""
+"""Snap — Launch the Health viewer.
+
+Gathers live Revit context (version, build, active model info, warnings) and
+writes it to health_scan_context.json for the viewer's Scan button to pick up.
+Does NOT run the health scan itself — that's a manual action from the viewer."""
 __title__ = 'Snap'
 import os
 import sys
+import json
 import subprocess
 
 _script_dir = os.path.dirname(os.path.abspath(__file__))
-_root = os.path.join(_script_dir, '..', '..', '..')
-_root = os.path.normpath(_root)
+_root = os.path.normpath(os.path.join(_script_dir, '..', '..', '..'))
 
 sys.path.insert(0, os.path.join(_root, 'app'))
 from logger import get_logger
@@ -15,62 +19,53 @@ log = get_logger('health_snap_btn')
 
 CREATE_NO_WINDOW = 0x08000000
 
-# ── Gather Revit context for the snapshot ───────────────────────────────────
-revit_version = ''
-revit_build = ''
-revit_username = ''
-model_name = ''
-model_path = ''
-warnings_count = ''
+# ── Gather Revit context ────────────────────────────────────────────────────
+ctx = {
+    'revit_version': '',
+    'revit_build': '',
+    'revit_username': '',
+    'model_name': '',
+    'model_path': '',
+    'model_size_mb': '',
+    'warnings_count': '',
+}
 
 try:
     app = __revit__.Application  # noqa: F821
-    try:
-        revit_version = str(app.VersionNumber)
-    except Exception:
-        pass
-    try:
-        revit_build = str(app.VersionBuild)
-    except Exception:
-        pass
-    try:
-        revit_username = str(app.Username)
-    except Exception:
-        pass
+    try: ctx['revit_version'] = str(app.VersionNumber)
+    except Exception: pass
+    try: ctx['revit_build'] = str(app.VersionBuild)
+    except Exception: pass
+    try: ctx['revit_username'] = str(app.Username)
+    except Exception: pass
 except Exception as e:
     log.debug('Could not read Application: %s', e)
 
-model_size_mb = ''
 try:
     uidoc = __revit__.ActiveUIDocument  # noqa: F821
     if uidoc:
         doc = uidoc.Document
         if doc and not doc.IsFamilyDocument:
-            try:
-                model_name = str(doc.Title) if doc.Title else ''
-            except Exception:
-                pass
-            try:
-                model_path = str(doc.PathName) if doc.PathName else ''
-            except Exception:
-                pass
-            if model_path:
+            try: ctx['model_name'] = str(doc.Title) if doc.Title else ''
+            except Exception: pass
+            try: ctx['model_path'] = str(doc.PathName) if doc.PathName else ''
+            except Exception: pass
+            if ctx['model_path']:
                 try:
                     import clr
                     clr.AddReference('mscorlib')
                     from System.IO import FileInfo
-                    fi = FileInfo(model_path)
+                    fi = FileInfo(ctx['model_path'])
                     if fi.Exists:
-                        model_size_mb = str(round(fi.Length / (1024.0 * 1024.0), 1))
+                        ctx['model_size_mb'] = str(round(fi.Length / (1024.0 * 1024.0), 1))
                 except Exception as e:
-                    log.debug('FileInfo size read failed for %s: %s', model_path, e)
+                    log.debug('FileInfo size read failed for %s: %s', ctx['model_path'], e)
             # ACC / cloud fallback: doc.PathName is a cloud URL, not a real
             # filesystem path. Cache files in CollaborationCache are named by
             # GUID, not title — so match by GUID when the API gives it to us,
             # else fall back to the newest .rvt mtime in the cache tree.
-            if not model_size_mb:
+            if not ctx['model_size_mb']:
                 try:
-                    # Try to pull model/project GUIDs from the cloud ModelPath
                     guid_tokens = set()
                     try:
                         cmp = doc.GetCloudModelPath()
@@ -87,8 +82,8 @@ try:
 
                     local_appdata = os.environ.get('LOCALAPPDATA', '')
                     cache_root = os.path.join(local_appdata, 'Autodesk', 'Revit') if local_appdata else ''
-                    best_by_guid = None    # (mtime, path, size) — GUID-matched file
-                    newest_rvt = None      # (mtime, path, size) — any .rvt, newest mtime
+                    best_by_guid = None
+                    newest_rvt = None
 
                     if cache_root and os.path.isdir(cache_root):
                         for ver_entry in os.listdir(cache_root):
@@ -117,50 +112,33 @@ try:
                     pick = best_by_guid or newest_rvt
                     if pick:
                         _mt, _fp, _sz = pick
-                        model_size_mb = str(round(_sz / (1024.0 * 1024.0), 1))
-                        log.info(
-                            'Resolved ACC model cache (%s): %s (%s MB)',
-                            'GUID match' if best_by_guid else 'newest .rvt',
-                            _fp, model_size_mb,
-                        )
+                        ctx['model_size_mb'] = str(round(_sz / (1024.0 * 1024.0), 1))
+                        log.info('Resolved ACC model cache (%s): %s (%s MB)',
+                                 'GUID match' if best_by_guid else 'newest .rvt',
+                                 _fp, ctx['model_size_mb'])
                 except Exception as e:
                     log.debug('CollaborationCache fallback failed: %s', e)
             try:
-                warnings_count = str(len(list(doc.GetWarnings())))
+                ctx['warnings_count'] = str(len(list(doc.GetWarnings())))
             except Exception:
                 pass
 except Exception as e:
     log.debug('Could not read active document: %s', e)
 
-# ── Run scan synchronously, then launch viewer ──────────────────────────────
-runner = os.path.join(_root, 'app', 'health_scan_runner.py')
-runner_argv = ['py', '-3.12', runner]
-for flag, val in (
-    ('--revit-version',  revit_version),
-    ('--revit-build',    revit_build),
-    ('--revit-username', revit_username),
-    ('--model-name',     model_name),
-    ('--model-path',     model_path),
-    ('--model-size-mb',  model_size_mb),
-    ('--warnings-count', warnings_count),
-):
-    if val:
-        runner_argv += [flag, val]
-
-log.info('Running health scan before launching viewer (model=%s)', model_name or '-')
+# ── Write context file for the viewer's Scan button ─────────────────────────
+ctx_path = os.path.join(_root, 'data', 'health_scan_context.json')
 try:
-    rc = subprocess.call(runner_argv, creationflags=CREATE_NO_WINDOW)
-    if rc != 0:
-        log.warning('Health scan runner returned rc=%s', rc)
-    else:
-        log.info('Health scan complete')
+    data_dir = os.path.dirname(ctx_path)
+    if not os.path.isdir(data_dir):
+        os.makedirs(data_dir)
+    with open(ctx_path, 'w') as f:
+        json.dump(ctx, f)
+    log.info('Wrote health scan context (model=%s)', ctx['model_name'] or '-')
 except Exception as e:
-    log.warning('Health scan failed, opening viewer with previous snapshot: %s', e)
+    log.warning('Failed to write health scan context: %s', e)
 
+# ── Launch viewer ───────────────────────────────────────────────────────────
 launcher = os.path.join(_root, 'app', 'health_viewer.py')
 log.info('Launching Health viewer: %s', launcher)
-subprocess.Popen(
-    ['py', '-3.12', launcher],
-    creationflags=CREATE_NO_WINDOW,
-)
+subprocess.Popen(['py', '-3.12', launcher], creationflags=CREATE_NO_WINDOW)
 log.info('Health viewer launched')

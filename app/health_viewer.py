@@ -10,13 +10,16 @@ import sys
 import json
 import time
 import shutil
+import subprocess
 import webview
 
 _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(_root, 'app'))
 
 from logger import get_logger
-from rst_lib import UI_DIR, HEALTH_SCAN_PATH
+from rst_lib import UI_DIR, HEALTH_SCAN_PATH, HEALTH_SCAN_CONTEXT_PATH
+
+CREATE_NO_WINDOW = 0x08000000
 
 log = get_logger('health_viewer')
 
@@ -147,6 +150,45 @@ class HealthViewerAPI:
 
         log.info('=== clean_junk result: deleted=%s skipped=%s ===', deleted, skipped)
         return {'deleted': deleted, 'skipped': skipped}
+
+    def run_scan(self):
+        """Run the health scan runner and return the fresh snapshot.
+
+        Picks up optional Revit context (model name/path/size, warnings, etc.)
+        from health_scan_context.json if the Snap pushbutton wrote one; otherwise
+        runs with no context. Blocks until the runner finishes so the JS caller
+        can render on resolve."""
+        runner = os.path.join(_root, 'app', 'health_scan_runner.py')
+        argv = ['py', '-3.12', runner]
+        ctx = {}
+        if os.path.exists(HEALTH_SCAN_CONTEXT_PATH):
+            try:
+                with open(HEALTH_SCAN_CONTEXT_PATH, 'r', encoding='utf-8') as f:
+                    ctx = json.load(f) or {}
+            except (OSError, json.JSONDecodeError) as e:
+                log.warning('Failed to read scan context: %s', e)
+        for key, flag in (
+            ('revit_version',  '--revit-version'),
+            ('revit_build',    '--revit-build'),
+            ('revit_username', '--revit-username'),
+            ('model_name',     '--model-name'),
+            ('model_path',     '--model-path'),
+            ('model_size_mb',  '--model-size-mb'),
+            ('warnings_count', '--warnings-count'),
+        ):
+            val = ctx.get(key)
+            if val:
+                argv += [flag, str(val)]
+        log.info('run_scan: launching runner (model=%s)', ctx.get('model_name') or '-')
+        try:
+            rc = subprocess.call(argv, creationflags=CREATE_NO_WINDOW)
+        except Exception as e:
+            log.warning('run_scan subprocess failed: %s', e)
+            return {'ok': False, 'error': str(e), 'data': None}
+        if rc != 0:
+            log.warning('run_scan: runner returned rc=%s', rc)
+            return {'ok': False, 'error': 'Runner exited with code %s' % rc, 'data': None}
+        return {'ok': True, 'data': self.get_snapshot()}
 
     def close_window(self):
         if self.window is not None:
