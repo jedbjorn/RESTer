@@ -54,12 +54,8 @@ if not errorlevel 1 goto :step1_skip
 echo   Installing via winget (9NQ7512CXL7T)...
 winget install --id 9NQ7512CXL7T --accept-source-agreements --accept-package-agreements --silent
 if errorlevel 1 goto :step1_fail
-
-call :refresh_path
-where py >nul 2>&1
-if errorlevel 1 goto :step1_path_fail
 set "STEP1=OK"
-goto :step2
+goto :step1_need_restart
 
 :step1_skip
 echo   Already installed. Skipping.
@@ -71,10 +67,24 @@ echo   FAIL: winget install returned an error.
 set "STEP1=FAIL"
 goto :summary
 
-:step1_path_fail
-echo   WARN: py not on PATH yet. Open a new terminal and re-run this script.
-set "STEP1=FAIL"
-goto :summary
+:step1_need_restart
+echo.
+echo ============================================================
+echo   Python Install Manager installed successfully.
+echo ============================================================
+echo.
+echo   Windows Store packages require a NEW terminal before the
+echo   'py' command becomes available.
+echo.
+echo   1. Close this window.
+echo   2. Open a fresh cmd or PowerShell window.
+echo   3. Re-run install.bat from the same folder.
+echo.
+echo   The script will skip step 1 and continue from step 2.
+echo.
+pause
+endlocal
+exit /b 0
 
 rem ---------- Step 2: Python 3.12 ----------
 :step2
@@ -189,10 +199,3 @@ echo.
 pause
 endlocal
 exit /b 1
-
-rem ---------- helpers ----------
-:refresh_path
-for /f "usebackq tokens=2,*" %%A in (`reg query "HKCU\Environment" /v PATH 2^>nul ^| findstr /i "PATH"`) do set "USER_PATH=%%B"
-for /f "usebackq tokens=2,*" %%A in (`reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v PATH 2^>nul ^| findstr /i "PATH"`) do set "SYS_PATH=%%B"
-set "PATH=%SYS_PATH%;%USER_PATH%"
-exit /b 0
